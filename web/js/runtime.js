@@ -78,9 +78,10 @@ export function createRuntime(engine) {
       dataHash = ctx.barsHash;
 
       if (geo) {
+        const view = profile.view || {};
         engine.setPaneStretch(panes.map((p) => p.h));
-        engine.setBarSpacing(profile.view.barSpacing);
-        engine.setAutoScale(profile.view.autoScale);
+        if (view.barSpacing > 0) engine.setBarSpacing(view.barSpacing);
+        engine.setAutoScale(view.autoScale !== false);
         engine.scrollToRealTime();
       }
       return { ops, panes };

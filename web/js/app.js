@@ -2,7 +2,7 @@ import { createEngine } from './core.js';
 import { createRuntime, activePanes } from './runtime.js';
 import * as addons from './addons.js';
 import { renderTree, renderAddBar, syncHeightInputs } from './proptree.js';
-import { defaultWindow, reconcile } from './statespec.js';
+import { defaultWindow, reconcile, defaultProject, paneDefaultH } from './statespec.js';
 
 const $ = (s) => document.querySelector(s);
 const api = async (u, o) => {
@@ -34,7 +34,9 @@ const getNode = (path) => api(nodePath(path));
 const patchNode = (path, body) => api(nodePath(path), J('PATCH', body));
 async function loadProfile() {
   const saved = await getNode(profilePath());
-  return reconcile(Object.keys(saved).length ? saved : defaultWindow(ACT.tf));
+  const prof = reconcile(Object.keys(saved).length ? saved : defaultWindow(ACT.tf));
+  if (!Object.keys(saved).length) await patchNode(profilePath(), prof);
+  return prof;
 }
 
 async function getBars(code, tf, force) {
@@ -57,9 +59,10 @@ async function getSignals(code, tf, h, fast, slow) {
 
 /* ---- 저장 ---- */
 function savePanes() {
+  const path = profilePath();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    api(nodePath(profilePath()), J('PATCH', { panes: PROF.panes,
+    api(nodePath(path), J('PATCH', { panes: PROF.panes,
                           view: { barSpacing: engine.getBarSpacing() } })).catch(() => {});
   }, 500);
 }
@@ -119,8 +122,8 @@ const CB = {
     for (const id of PROF.order) {
       if ((PROF.items[id].props.paneId || 'main') === paneId) removed[id] = '__delete__';
     }
-    await patchNode(profilePath(), { items: removed });
-    await api(nodePath(`${profilePath()}/panes/${encodeURIComponent(paneId)}`), { method: 'DELETE' });
+    await patchNode(profilePath(), { items: removed,
+      panes: PROF.panes.filter((p) => p.id !== paneId) });
     PROF = await loadProfile();
     await draw(false);
   },
@@ -136,7 +139,9 @@ const CB = {
     } else {
       const pid = m.pane + (PROF.panes.some((p) => p.id === m.pane) ? '_' + n : '');
       props.paneId = pid;
-      if (!PROF.panes.some((p) => p.id === pid)) pane = { id: pid, label: m.label, h: 95 };
+      if (!PROF.panes.some((p) => p.id === pid)) {
+        pane = { id: pid, label: m.label, h: paneDefaultH(m.pane) };
+      }
     }
     try {
       const update = { items: { [id]: { kind, enabled: true, visible: true, props } },
@@ -179,7 +184,8 @@ function renderTop() {
 /* ---- 그리기 ---- */
 async function draw(force, geo) {
   const rec = await getBars(ACT.code, ACT.tf, force);
-  const sg = PROF.items.signals;
+  const sgId = PROF.order.find((id) => PROF.items[id].kind === 'signals');
+  const sg = sgId ? PROF.items[sgId] : null;
   let markers = [], ev = null;
   const on = sg && sg.enabled && sg.visible;
   const d = await getSignals(ACT.code, ACT.tf, rec.barsHash,
@@ -199,7 +205,11 @@ async function draw(force, geo) {
 async function switchTo(vd, code, tf) {
   try {
     pullHeights();
+    clearTimeout(saveTimer);
+    await patchNode(profilePath(), { panes: PROF.panes,
+                    view: { barSpacing: engine.getBarSpacing() } });
     ACT = await patchNode(`active`, { vd, code, tf });
+    await patchNode(`vds/${vd}`, { code, tf });
     ST = await getNode('');
     PROF = reconcile(await getNode(profilePath()));
     renderTop();
@@ -248,18 +258,9 @@ async function order(side) {
 
   HEALTH = await api('/api/health');
   ST = await getNode('');
-  if (!ST.vds) {
-    ST = await patchNode('', { schemaVersion: 3, globalOn: true,
-      active: { vd: 'vd1', code: '005930', tf: '1m' },
-      vds: { vd1: { label: 'VD1', code: '005930', name: '삼성전자', tf: '1m' },
-              vd2: { label: 'VD2', code: '000660', name: 'SK하이닉스', tf: '5m' },
-              vd3: { label: 'VD3', code: '035720', name: '카카오', tf: '1d' },
-              vd4: { label: 'VD4', code: '005380', name: '현대차', tf: '1d' } },
-      profiles: {} });
-  }
+  if (!ST.vds) ST = await patchNode('', defaultProject());
   ACT = ST.active;
   PROF = await loadProfile();
-  PROF = await patchNode(profilePath(), PROF);
   renderTop();
   await draw(true, true);
   await refreshQuote(); await refreshBalance();

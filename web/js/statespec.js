@@ -112,3 +112,22 @@ export function reconcile(prof) {
   prof.panes.sort((a, b) => (a.id === 'main' ? -1 : b.id === 'main' ? 1 : 0));
   return prof;
 }
+
+export const DEFAULT_VDS = {
+  vd1: { label: 'VD1', code: '005930', name: '삼성전자', tf: '1m' },
+  vd2: { label: 'VD2', code: '000660', name: 'SK하이닉스', tf: '5m' },
+  vd3: { label: 'VD3', code: '035720', name: '카카오', tf: '1d' },
+  vd4: { label: 'VD4', code: '005380', name: '현대차', tf: '1d' },
+};
+
+export function defaultProject() {
+  return { schemaVersion: 4, globalOn: true,
+           active: { vd: 'vd1', code: DEFAULT_VDS.vd1.code, tf: DEFAULT_VDS.vd1.tf },
+           vds: JSON.parse(JSON.stringify(DEFAULT_VDS)), profiles: {} };
+}
+
+export function paneDefaultH(paneId) {
+  if (paneId === 'main') return 300;
+  const c = addons.catalog().find((x) => x.pane === paneId);
+  return (c && c.paneH) || 95;
+}

@@ -47,6 +47,15 @@ export function createEngine(el) {
     },
     getPaneHeight(i) { const p = chart.panes()[i]; return p ? Math.round(p.getHeight()) : 0; },
     setPaneHeight(i, px) { const p = chart.panes()[i]; if (p) { try { p.setHeight(px); } catch (e) {} } },
+    setPaneStretch(weights) {
+      const panes = chart.panes();
+      const n = Math.min(panes.length, weights.length);
+      for (let i = 0; i < n; i++) {
+        const w = Math.max(1, weights[i] || 1);
+        try { panes[i].setStretchFactor(w); } catch (e) {}
+      }
+    },
+    getPaneHeights() { return chart.panes().map((p) => Math.round(p.getHeight())); },
     setBarSpacing(v) { chart.timeScale().applyOptions({ barSpacing: v }); },
     getBarSpacing() { return chart.timeScale().options().barSpacing; },
     setAutoScale(on) { chart.priceScale('right').applyOptions({ autoScale: !!on }); },

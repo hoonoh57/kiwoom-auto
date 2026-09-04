@@ -25,6 +25,7 @@ const barCache = new Map(), sigCache = new Map();
 const FRESH_MS = 20000;
 let ST = null, ACT = null, PROF = null, HEALTH = null, PANES = [];
 let saveTimer = null;
+let geoLock = 0;
 
 const q = () => `vd=${ACT.vd}&code=${ACT.code}&tf=${ACT.tf}`;
 
@@ -57,10 +58,11 @@ function savePanes() {
 
 /* ---- 드래그 -> 슬라이더/STATE 동기 ---- */
 function pullHeights() {
-  if (!PROF || !PANES.length) return;
+  if (!PROF || !PANES.length || Date.now() < geoLock) return;
+  const hs = engine.getPaneHeights();
   let ch = false;
   PANES.forEach((p, i) => {
-    const h = engine.getPaneHeight(i);
+    const h = hs[i];
     if (h > 20 && Math.abs(h - p.h) > 2) {
       p.h = h;
       const t = PROF.panes.find((x) => x.id === p.id);
@@ -142,7 +144,7 @@ function renderTop() {
     const b = document.createElement('button');
     b.textContent = `${d.label} ${d.name}`;
     if (id === ACT.vd) b.className = 'on';
-    b.onclick = () => switchTo(id, d.code, ACT.tf);
+    b.onclick = () => switchTo(id, d.code, d.tf || ACT.tf);
     v.append(b);
   }
   const t = $('#tfs'); t.innerHTML = '';
@@ -157,7 +159,7 @@ function renderTop() {
 }
 
 /* ---- 그리기 ---- */
-async function draw(force) {
+async function draw(force, geo) {
   const rec = await getBars(ACT.code, ACT.tf, force);
   const sg = PROF.items.signals;
   let markers = [], ev = null;
@@ -167,7 +169,8 @@ async function draw(force) {
   ev = d.eval;
   if (on) markers = d.markers;
   const ctx = { engine, bars: rec.bars, liveBar: rec.live, barsHash: rec.barsHash, markers };
-  const r = runtime.apply(PROF, ST.globalOn, ctx);
+  const r = runtime.apply(PROF, ST.globalOn, ctx, !!geo);
+  if (geo) geoLock = Date.now() + 1200;
   runtime.tickLive(ctx);
   PANES = r.panes;
   tree();
@@ -182,7 +185,7 @@ async function switchTo(vd, code, tf) {
     ST = await api('/api/state');
     PROF = (await api(`/api/profile?${q()}`)).profile;
     renderTop();
-    await draw(false);
+    await draw(false, true);
     await refreshQuote();
   } catch (e) {
     log('[SWITCH-FAIL] ' + vd + '/' + code + '/' + tf + ' :: ' + e.message);
@@ -230,7 +233,7 @@ async function order(side) {
   ACT = ST.active;
   PROF = (await api(`/api/profile?${q()}`)).profile;
   renderTop();
-  await draw(true);
+  await draw(true, true);
   await refreshQuote(); await refreshBalance();
   setInterval(() => draw(true).catch((e) => log('[DRAW] ' + e.message)), 15000);
   setInterval(refreshQuote, 5000);

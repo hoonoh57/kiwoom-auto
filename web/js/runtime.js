@@ -40,7 +40,7 @@ export function createRuntime(engine) {
   }
 
   return {
-    apply(profile, globalOn, ctx) {
+    apply(profile, globalOn, ctx, geo) {
       const ops = [];
       const { want, panes } = desired(profile, globalOn);
       const wantIds = new Set(want.map((w) => w.id));
@@ -77,10 +77,12 @@ export function createRuntime(engine) {
       }
       dataHash = ctx.barsHash;
 
-      panes.forEach((p, i) => engine.setPaneHeight(i, p.h));
-      engine.setBarSpacing(profile.barSpacing);
-      engine.setAutoScale(profile.scale.autoScale);
-      engine.scrollToRealTime();
+      if (geo) {
+        engine.setPaneStretch(panes.map((p) => p.h));
+        engine.setBarSpacing(profile.barSpacing);
+        engine.setAutoScale(profile.scale.autoScale);
+        engine.scrollToRealTime();
+      }
       return { ops, panes };
     },
     tickLive(ctx) {

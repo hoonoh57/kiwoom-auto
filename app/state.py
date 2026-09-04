@@ -8,10 +8,10 @@ from . import config
 SCHEMA = 3
 
 VDS = {
-    "vd1": {"label": "VD1", "code": "005930", "name": "삼성전자"},
-    "vd2": {"label": "VD2", "code": "000660", "name": "SK하이닉스"},
-    "vd3": {"label": "VD3", "code": "035720", "name": "카카오"},
-    "vd4": {"label": "VD4", "code": "005380", "name": "현대차"},
+    "vd1": {"label": "VD1", "code": "005930", "name": "삼성전자", "tf": "1m"},
+    "vd2": {"label": "VD2", "code": "000660", "name": "SK하이닉스", "tf": "5m"},
+    "vd3": {"label": "VD3", "code": "035720", "name": "카카오", "tf": "1d"},
+    "vd4": {"label": "VD4", "code": "005380", "name": "현대차", "tf": "1d"},
 }
 
 _TF_BARSPACING = {"tick": 4, "1m": 8, "5m": 8, "30m": 9,
@@ -72,11 +72,18 @@ def load():
         st = default_state()
         save(st)
         return st
-    if st.get("schemaVersion") != SCHEMA:
-        st = default_state()
+    v = st.get("schemaVersion", 0)
+    if v != SCHEMA:
+        base = default_profile("1m")
+        for prof in st.get("profiles", {}).values():
+            for k in ("panes", "order", "items", "scale", "barSpacing", "ui"):
+                prof.setdefault(k, copy.deepcopy(base[k]))
+        st["schemaVersion"] = SCHEMA
         save(st)
     st.setdefault("profiles", {})
     st.setdefault("vds", copy.deepcopy(VDS))
+    for vid, v in st["vds"].items():
+        v.setdefault("tf", VDS.get(vid, {}).get("tf", "1m"))
     return st
 
 
@@ -162,6 +169,7 @@ def set_active(st, vd, code, tf):
         raise KeyError("unknown vd: " + vd)
     st["active"] = {"vd": vd, "code": code, "tf": tf}
     st["vds"][vd]["code"] = code
+    st["vds"][vd]["tf"] = tf
     get_profile(st, vd, code, tf)
     save(st)
     return st["active"]

@@ -1,9 +1,10 @@
 # design.md — 8개 가상화면과 자식폼 설계
 
-상태: DRAFT
+상태: APPROVED (2026-09-05 사용자 승인)
 대상 스키마: schemaVersion 5 (현재 실행 코드와 STATE = 4)
 OPEN QUESTIONS: 0
-승인 범위: 없음. C1 산출물과 T12가 미완료이므로 제품 코드 수정 금지.
+승인 범위: D3.chart.candle-source, D3.chart.placement, D5.candles.compare,
+D7.chart.data-diff, D11.trace.multi-symbol-candles 구현 허용.
 
 ## 조사 근거
 
@@ -73,6 +74,30 @@ STATE form.body.items -> web/js/runtime.js(BRIDGE)
 | `prevRect` | rect | 최초 rect | 변경 가능 |
 | `body` | JSON object | Add-on 기본값 | 변경 가능 |
 
+### D3.chart.candle-source
+
+chart 폼의 각 `candles` item은 자식폼의 공통 종목을 복사하지 않고 자기 데이터 원본과 표시 방식을 소유한다.
+
+| props 필드 | 타입 | 기본값/범위 | 의미 |
+|---|---|---|---|
+| `code` | 6자리 문자열/null | null | null이면 form.code를 상속, 값이 있으면 해당 종목 사용 |
+| `tf` | 허용 주기/null | null | null이면 form.tf를 상속 |
+| `placement` | `overlay|pane` | overlay | 메인 pane 중첩 또는 독립 서브차트 |
+| `paneId` | 문자열 | main | overlay 대상 또는 독립 pane 식별자 |
+| `scaleId` | 문자열 | auto | right, left, compare 또는 item 전용 `y:<itemId>` |
+| `compareMode` | `price|percent|indexed100` | price | 원가격, 기준 대비 %, 기준값 100 |
+| `baseTime` | Unix 초/null | null | percent/indexed100의 기준 시각 |
+| `baseValue` | 양수/null | null | 기준 시각에서 확정된 종가 |
+
+`code`와 `tf`의 상속은 기존 STATE 마이그레이션에만 사용한다. 신규 캔들 선택 시 UI는 종목코드·주기·표시·비교 설정 폼을 열고, 6자리 종목코드 검증과 사용자의 `추가` 확정 전에는 STATE를 쓰지 않는다. 첫 기본 캔들은 `right` 축, 이후 추가 캔들은 `auto` 축을 기본값으로 사용한다. 생성 후에도 속성 트리에서 각 값을 독립적으로 변경할 수 있다.
+
+### D3.chart.placement
+
+- `overlay + price`: `scaleId=auto`이면 `y:<itemId>`를 사용하여 다른 종목 가격 범위와 분리한다.
+- `overlay + percent|indexed100`: `scaleId=auto`이면 모든 비교 series가 `compare` scale을 공유한다.
+- `pane`: item 전용 pane을 만들고 그 pane의 `right` scale을 사용한다.
+- 한 chart 폼 안의 모든 series는 하나의 time scale을 공유한다. 서로 다른 tf는 허용하지만 빈 시각은 각 series의 whitespace로 남긴다.
+
 ### D3.vd.fields
 
 VD는 정확히 `vd1`~`vd8`이다. 각 VD는 `{label, order, z}`를 가지며 label은 `1`~`8`, order는 `0`~`7`, z는 바닥→최상단 폼 ID 배열이다. `allVd=true` 폼은 소속 VD의 z에 한 번만 존재한다.
@@ -130,6 +155,20 @@ register(kind, {
 
 Add-on은 자기 content host만 소유한다. ensure는 handle 하나를 반환하고 update/remove는 한 폼만 처리한다. 계약 오류는 `ScreenContractError(kind, field)`로 전달하고 Bridge는 해당 폼만 오류 상태로 표시한다.
 
+### D5.candles.compare
+
+`candles` Add-on은 item 하나의 `code/tf/placement/paneId/scaleId/compareMode/baseTime/baseValue`만 해석한다. 데이터 요청은 주입된 `marketData.getBars({code,tf})` capability로 수행하며 Core나 Bridge가 종목 코드를 해석하지 않는다.
+
+`price` 모드는 OHLC를 그대로 전달한다. `percent`와 `indexed100`은 `baseValue`가 양수일 때만 series를 생성한다. baseValue가 없으면 `baseTime` 이상인 최초 bar의 close를 확정하여 STATE에 한 번 기록한 뒤 적용한다. 다른 item의 bar나 live handle을 참조하지 않는다.
+
+```text
+price      : O'=O, H'=H, L'=L, C'=C
+percent    : X'=(X/baseValue-1)*100
+indexed100 : X'=(X/baseValue)*100
+```
+
+변환은 각 bar의 O/H/L/C 모두에 동일하게 적용한다. 데이터가 없거나 baseValue가 0 이하이면 해당 item만 `CandleDataError` 상태가 되며 다른 item lifecycle을 건드리지 않는다.
+
 ## D6 — Core primitive
 
 ### D6.frame.api
@@ -164,6 +203,12 @@ live authority는 `Map<formId,{kind,propsHash,frame,addonHandle}>` 하나다. VD
 ### D7.link.diff
 
 이벤트 폼이 `link=pin`이면 자기 code만 바꾼다. `follow`이면 같은 shareGroup, link=follow, needCode=true인 폼 중 `symLink=all`은 전체 VD, `symLink=vd`는 이벤트 폼의 소속 VD만 갱신한다. allVd 폼도 소속 vd로 범위를 판정한다.
+
+### D7.chart.data-diff
+
+series Bridge의 desired item에는 `{id,kind,enabled,visible,props,order}`만 들어간다. `code/tf` 변경은 해당 item의 propsHash만 바꾸며 그 item에만 update를 발생시킨다. placement 또는 paneId 변경은 해당 item의 기존 primitive를 remove한 뒤 동일 ID를 새 pane에 ensure한다. scaleId 또는 compareMode 변경은 해당 item update만 발생시킨다.
+
+같은 `{code,tf}`를 사용하는 여러 item의 네트워크 응답 캐시는 generic marketData adapter가 공유할 수 있지만 캐시는 desired authority가 아니며 item lifecycle을 소유하지 않는다.
 
 ## D8 — propsHash 정규화
 
@@ -217,6 +262,23 @@ T11 f500 변경            touch count 1
 
 폼 내부 series도 같은 T1~T11 규칙을 `runtime.js`에 적용한다.
 
+### D11.trace.multi-symbol-candles
+
+```text
+C0 캔들 추가 설정 취소    operation 0, STATE write 0
+C1 candles1(005930,overlay,price,y:candles1) 추가
+   [{op:ensure,id:candles1,kind:candles,propsHash:H(c1)}]
+C2 candles2(000660,overlay,indexed100,compare) 추가
+   [{op:ensure,id:candles2,kind:candles,propsHash:H(c2)}]
+C3 candles2 code를 035720으로 변경
+   [{op:update,id:candles2,kind:candles,propsHash:H(c2-next)}]
+   candles1 operation은 0
+C4 candles2 placement를 pane, paneId를 compare2로 변경
+   [{op:remove,id:candles2,kind:candles,propsHash:H(c2-next)},
+    {op:ensure,id:candles2,kind:candles,propsHash:H(c2-pane)}]
+C5 동일 STATE 재적용 []
+```
+
 ## D12 — 성능 예산
 
 | N | 최초 ensure | 동일 STATE 재적용 | 폼 1개 변경 | 할당 상한 |
@@ -250,4 +312,4 @@ Screen 추가는 `screens/<kind>.js`와 `screens.js` 등록 1줄만 변경한다
 
 없음.
 
-다음 게이트 산출물은 아직 없다: `state/workspace.v5.fixture.json`, `tests/fixtures/desk-traces.json`, check.py의 `--static/--semantic/--recorder/--t12` 계약, 독립 검토자 T12 결과. 따라서 상태는 DRAFT다. 산출물과 T12 완료 후 REVIEWED, 사용자 승인 후 APPROVED로 바꾼다.
+전체 저장소 게이트의 잔여는 `state/workspace.v5.fixture.json`, `tests/fixtures/desk-traces.json`, check.py의 `--static/--semantic/--recorder/--t12` 계약과 독립 검토자 T12다. 다종목 캔들 범위는 2026-09-05 사용자가 명시적으로 승인했으며 C1~C5는 `tests/multisymbol-candles.mjs`로 검증한다. 이 범위 밖의 미승인 제품 코드는 금지한다.

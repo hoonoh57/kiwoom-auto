@@ -96,7 +96,14 @@ footer{flex:0 0 auto;display:flex;gap:10px;align-items:center;border-top:1px sol
 .pk{flex:0 0 60px;color:#8d97ab;font-size:11px}
 .pv{flex:1 1 auto;min-width:0}
 .pv input[type=number]{width:100%;padding:2px 4px;font-size:11px;background:#11131a;color:var(--fg);border:1px solid var(--ln);border-radius:3px}
+.pv input[type=text],.pv select{width:100%;padding:2px 4px;font-size:11px;background:#11131a;color:var(--fg);border:1px solid var(--ln);border-radius:3px}
 .pv input[type=color]{width:100%;height:20px;padding:0;border:1px solid var(--ln);border-radius:3px;background:#11131a}
 .pv input[type=range]{width:100%}
 .hval{flex:0 0 42px;text-align:right;color:#8d97ab;font-size:11px;font-family:ui-monospace,Consolas,monospace}
 .cf-add select{background:#252a35;color:var(--fg);border:1px solid var(--ln);border-radius:4px;font-size:11px;padding:2px;margin-bottom:4px}
+.addcfg{margin:3px 0 7px;padding:7px;background:#171a21;border:1px solid #394154;border-radius:4px}
+.addcfg-title{margin-bottom:5px;color:#9ecbff;font-weight:600}
+.addcfg-row{display:flex;align-items:center;gap:6px;margin:4px 0;color:#8d97ab;font-size:11px}
+.addcfg-row span{flex:0 0 58px}
+.addcfg-row input,.addcfg-row select{flex:1 1 auto;min-width:0;padding:3px 4px;background:#101219;color:var(--fg);border:1px solid var(--ln);border-radius:3px;font-size:11px;font-family:inherit}
+.addcfg-actions{display:flex;justify-content:flex-end;gap:5px;margin-top:7px}

@@ -1,0 +1,86 @@
+import assert from 'node:assert/strict';
+import { createRuntime } from '../web/js/runtime.js';
+
+const made = [];
+const removed = [];
+const engine = {
+  addSeries(type, options, pane) {
+    const series = {
+      type, options: { ...options }, pane, data: [],
+      setData(rows) { this.data = rows; },
+      update(row) { this.live = row; },
+      applyOptions(next) { Object.assign(this.options, next); },
+    };
+    made.push(series);
+    return series;
+  },
+  removeSeries(series) { removed.push(series); },
+  setSeriesScaleOptions(series, options) { series.scaleOptions = { ...options }; },
+  trimPanes() {}, setPaneStretch() {}, setBarSpacing() {}, setAutoScale() {}, scrollToRealTime() {},
+};
+
+const bar = (time, close) => ({ time, open: close - 1, high: close + 2, low: close - 2, close, volume: 1 });
+const datasets = new Map([
+  ['005930|1m', { bars: [bar(1, 100), bar(2, 110)], barsHash: 'samsung', liveBar: null }],
+  ['000660|1m', { bars: [bar(1, 200), bar(2, 220)], barsHash: 'sk', liveBar: null }],
+  ['035720|1m', { bars: [bar(1, 50), bar(2, 55)], barsHash: 'kakao', liveBar: null }],
+]);
+
+const form = { code: '005930', tf: '1m' };
+const patches = [];
+const ctx = {
+  engine, form, bars: datasets.get('005930|1m').bars, barsHash: 'samsung', liveBar: null,
+  dataFor: (key) => datasets.get(key), patchItem: (id, patch) => patches.push([id, patch]),
+};
+const profile = {
+  panes: [{ id: 'main', label: 'main', h: 300 }],
+  items: {
+    candles1: { kind: 'candles', enabled: true, visible: true, props: {
+      code: '005930', tf: '1m', placement: 'overlay', paneId: 'main', scaleId: 'right',
+      compareMode: 'price', baseTime: null, baseValue: null,
+    } },
+    candles2: { kind: 'candles', enabled: true, visible: true, props: {
+      code: '000660', tf: '1m', placement: 'overlay', paneId: 'main', scaleId: 'compare',
+      compareMode: 'indexed100', baseTime: 1, baseValue: 200,
+    } },
+  },
+  order: ['candles1', 'candles2'], view: {},
+};
+
+const runtime = createRuntime(engine);
+let result = runtime.apply(profile, true, ctx, false);
+assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [['ensure', 'candles1'], ['ensure', 'candles2']]);
+assert.equal(made[0].options.priceScaleId, 'right');
+assert.equal(made[1].options.priceScaleId, 'compare');
+assert.equal(made[1].data[0].close, 100);
+assert.equal(made[1].data[1].close, 110.00000000000001);
+
+result = runtime.apply(profile, true, ctx, false);
+assert.deepEqual(result.ops, []);
+
+profile.items.candles2.props.code = '035720';
+profile.items.candles2.props.baseValue = 50;
+result = runtime.apply(profile, true, ctx, false);
+assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [['update', 'candles2']]);
+assert.equal(made[1].data[1].close, 110.00000000000001);
+
+profile.items.candles2.props.placement = 'pane';
+profile.items.candles2.props.paneId = 'compare:candles2';
+profile.items.candles2.props.scaleId = 'right';
+result = runtime.apply(profile, true, ctx, false);
+assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [['remove', 'candles2'], ['ensure', 'candles2']]);
+assert.equal(made.at(-1).pane, 1);
+assert.equal(removed.length, 1);
+
+result = runtime.apply(profile, true, ctx, false);
+assert.deepEqual(result.ops, []);
+
+profile.items.candles2.props.compareMode = 'percent';
+profile.items.candles2.props.baseTime = null;
+profile.items.candles2.props.baseValue = null;
+result = runtime.apply(profile, true, ctx, false);
+assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [['update', 'candles2']]);
+await Promise.resolve();
+assert.deepEqual(patches, [['candles2', { baseValue: 50, baseTime: 1 }]]);
+
+console.log('[PASS] multi-symbol candles overlay/pane/locality/idempotence');

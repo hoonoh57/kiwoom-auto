@@ -36,6 +36,7 @@ export function createEngine(el) {
       return chart.addSeries(d, opts || {}, paneIndex || 0);
     },
     removeSeries(s) { try { chart.removeSeries(s); } catch (e) {} },
+    setSeriesScaleOptions(s, opts) { try { s.priceScale().applyOptions(opts || {}); } catch (e) {} },
     addPriceLine(s, opts) { try { return s.createPriceLine(opts); } catch (e) { return null; } },
     removePriceLine(s, l) { try { if (l) s.removePriceLine(l); } catch (e) {} },
     attachMarkers(s, list) { return LC.createSeriesMarkers(s, list || []); },

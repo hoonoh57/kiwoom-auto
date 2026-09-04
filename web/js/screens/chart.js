@@ -52,8 +52,13 @@ setInterval(() => { for (const k of [...feeds.keys()]) pull(k, false); }, 15000)
 
 /* ---- body 스펙 ---- */
 const paneOf = (kind) => { const m = addons.meta(kind); return (m && m.pane) || 'main'; };
+const nextItemId = (body, kind) => {
+  let n = 1;
+  while (body.items[kind + n]) n++;
+  return kind + n;
+};
 
-function seed() {
+function seed(form) {
   const items = {};
   const order = [];
   for (const c of addons.catalog()) {
@@ -62,7 +67,7 @@ function seed() {
     while (items[c.kind + n]) n++;
     const id = c.kind + n;
     items[id] = { kind: c.kind, enabled: true, visible: true,
-                  props: { ...addons.defaults(c.kind), paneId: c.pane || 'main' } };
+                  props: { ...addons.defaults(c.kind, { id, form }), paneId: c.pane || 'main' } };
     order.push(id);
   }
   return { items, order };
@@ -105,7 +110,7 @@ export const SCREEN = {
   minSize: { w: 460, h: 280 },
 
   defaultBody(form) {
-    const s = seed();
+    const s = seed(form);
     const body = { items: s.items, order: s.order, panes: [], view: {}, ui: { open: { main: true }, panel: true } };
     body.panes = normPanes([], body);
     body.view = { barSpacing: TF_BS[form.tf] || 8, autoScale: true };
@@ -117,13 +122,13 @@ export const SCREEN = {
     b.items = obj(b.items);
     b.order = arr(b.order).filter((id, i, a) => b.items[id] && addons.get(b.items[id].kind) && a.indexOf(id) === i);
     for (const id of Object.keys(b.items)) if (!b.order.includes(id)) delete b.items[id];
-    if (!b.order.length) { const s = seed(); b.items = s.items; b.order = s.order; }
+    if (!b.order.length) { const s = seed(form); b.items = s.items; b.order = s.order; }
     for (const id of b.order) {
       const it = obj(b.items[id]);
       it.kind = b.items[id].kind;
       it.enabled = it.enabled !== false;
       it.visible = it.visible !== false;
-      it.props = { ...addons.defaults(it.kind), ...obj(it.props) };
+      it.props = { ...addons.defaults(it.kind, { id, form }), ...obj(it.props) };
       if (!it.props.paneId) it.props.paneId = paneOf(it.kind);
       b.items[id] = it;
     }
@@ -171,26 +176,36 @@ export const SCREEN = {
 
     const engine = createEngine(cwrap);
     const runtime = createRuntime(engine);
-    const h = { root, engine, runtime, key: keyOf(form.code, form.tf),
-                data: null, unsub: null, bodyHash: '', panes: [], tid: 0 };
+    const h = { root, engine, runtime, defaultKey: keyOf(form.code, form.tf),
+                dataByKey: new Map(), unsubs: new Map(), bodyHash: '', panes: [], tid: 0 };
 
     const cbs = {
       toggleOpen: (k, v) => ctx.patchBody({ ui: { open: { [k]: v } } }),
       toggleItem: (id, on) => ctx.patchBody({ items: { [id]: { enabled: on, visible: on } } }),
-      patchProp: (id, k, v) => ctx.patchBody({ items: { [id]: { props: { [k]: v } } } }),
+      patchProps: (id, p) => {
+        const b = ctx.form().body;
+        const next = { ...b.items[id].props, ...p };
+        ctx.patchBody({ items: { [id]: { props: p } }, panes: withPane(b.panes, next.paneId || 'main') });
+      },
       deleteItem: (id) => {
         const b = ctx.form().body;
         ctx.patchBody({ items: { [id]: DEL }, order: b.order.filter((x) => x !== id) });
       },
-      addItem: (kind) => {
+      prepareItem: (kind) => {
         const b = ctx.form().body;
-        let n = 1;
-        while (b.items[kind + n]) n++;
-        const id = kind + n;
+        const id = nextItemId(b, kind);
+        return { id, props: { ...addons.defaults(kind, { id, form: ctx.form() }), paneId: paneOf(kind) } };
+      },
+      addItem: (kind, draft) => {
+        const b = ctx.form().body;
+        const id = draft && draft.id && !b.items[draft.id] ? draft.id : nextItemId(b, kind);
         const pid = paneOf(kind);
+        const props = { ...addons.defaults(kind, { id, form: ctx.form() }),
+          paneId: pid, ...obj(draft && draft.props) };
         const it = { kind, enabled: true, visible: true,
-                     props: { ...addons.defaults(kind), paneId: pid } };
-        ctx.patchBody({ items: { [id]: it }, order: [...b.order, id], panes: withPane(b.panes, pid) });
+                     props };
+        ctx.patchBody({ items: { [id]: it }, order: [...b.order, id],
+          panes: withPane(b.panes, props.paneId || pid) });
       },
       deletePane: (pid) => {
         const b = ctx.form().body;
@@ -220,24 +235,46 @@ export const SCREEN = {
 
     function draw(geo) {
       const f = ctx.form();
-      if (!f || !h.data) return;
-      const rc = { engine, bars: h.data.bars, barsHash: h.data.barsHash,
-                   liveBar: h.data.liveBar, markers: h.data.markers };
+      if (!f) return;
+      const empty = { bars: [], barsHash: '0', liveBar: null, markers: [], ev: null, err: null };
+      const mainData = h.dataByKey.get(h.defaultKey) || empty;
+      const rc = { engine, form: f, bars: mainData.bars, barsHash: mainData.barsHash,
+                   liveBar: mainData.liveBar, markers: mainData.markers,
+                   dataFor: (key) => h.dataByKey.get(key || h.defaultKey) || empty,
+                   patchItem: (id, p) => ctx.patchBody({ items: { [id]: { props: p } } }) };
       const r = runtime.apply(f.body, ctx.globalOn(), rc, geo);
       h.panes = r.panes;
       const bh = JSON.stringify([f.body.items, f.body.order, f.body.panes, f.body.ui]);
       if (bh !== h.bodyHash) { h.bodyHash = bh; proptree.renderTree(tree, f.body, r.panes, cbs); }
       else proptree.syncHeightInputs(tree, r.panes);
       panel.style.display = obj(f.body.ui).panel === false ? 'none' : '';
-      const e = h.data.ev || {};
-      ev.textContent = h.data.err ? 'ERR ' + String(h.data.err).slice(0, 40)
+      const e = mainData.ev || {};
+      ev.textContent = mainData.err ? 'ERR ' + String(mainData.err).slice(0, 40)
         : String(e.signal || e.state || e.pos || '');
       runtime.tickLive(rc);
     }
 
     h.draw = draw;
-    h.onData = (d) => { h.data = d; draw(false); };
-    h.unsub = subscribe(form.code, form.tf, h.onData);
+
+    function syncFeeds(f) {
+      h.defaultKey = keyOf(f.code, f.tf);
+      const wanted = new Map([[h.defaultKey, { code: f.code, tf: f.tf }]]);
+      for (const id of arr(f.body.order)) {
+        const it = f.body.items[id];
+        if (!it) continue;
+        const src = addons.source(it.kind, it, { id, form: f });
+        if (src && src.code && src.tf) wanted.set(keyOf(src.code, src.tf), src);
+      }
+      for (const [key, off] of h.unsubs) {
+        if (!wanted.has(key)) { off(); h.unsubs.delete(key); h.dataByKey.delete(key); }
+      }
+      for (const [key, src] of wanted) {
+        if (h.unsubs.has(key)) continue;
+        h.unsubs.set(key, subscribe(src.code, src.tf, (d) => { h.dataByKey.set(key, d); draw(false); }));
+      }
+    }
+
+    syncFeeds(form);
 
     engine.onRangeChange(() => {
       clearTimeout(h.tid);
@@ -250,15 +287,13 @@ export const SCREEN = {
     });
 
     h.resub = (f) => {
-      if (h.unsub) h.unsub();
-      h.key = keyOf(f.code, f.tf);
-      h.data = null;
       cin.value = f.code;
       tsel.value = f.tf;
-      h.unsub = subscribe(f.code, f.tf, h.onData);
+      syncFeeds(f);
     };
     h.stop = () => {
-      if (h.unsub) h.unsub();
+      for (const off of h.unsubs.values()) off();
+      h.unsubs.clear();
       clearTimeout(h.tid);
       engine.destroy();
       root.remove();
@@ -267,7 +302,7 @@ export const SCREEN = {
   },
 
   update(h, form, ctx) {
-    if (h.key !== keyOf(form.code, form.tf)) h.resub(form);
+    h.resub(form);
     h.draw(true);
   },
 

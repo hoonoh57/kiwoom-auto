@@ -101,21 +101,129 @@ const won = (v) => {
 /* ---------- 레지스트리 ---------- */
 const registry = new Map();
 const P = (props, k, d) => (props[k] === undefined ? d : props[k]);
+const CANDLE_TF = new Set(['tick', '1m', '5m', '30m', '1d', '1w', '1M']);
+const CANDLE_COLORS = [
+  ['#26a69a', '#ef5350'], ['#5b8def', '#f2b632'],
+  ['#a875e8', '#e88b75'], ['#45b8c4', '#d467a9'],
+];
+const codeOf = (v, d) => (/^\d{6}$/.test(String(v || '')) ? String(v) : String(d || ''));
+const tfOf = (v, d) => (CANDLE_TF.has(v) ? v : d);
+const dataOf = (ctx, p) => (ctx.dataFor ? ctx.dataFor(p && p.dataKey) : ctx);
+const candleColors = (id) => {
+  const m = /(\d+)$/.exec(id || '1');
+  return CANDLE_COLORS[((m ? Number(m[1]) : 1) - 1) % CANDLE_COLORS.length];
+};
+
+function candleData(data, p) {
+  const bars = (data && data.bars) || [];
+  if (p.compareMode === 'price') return { bars, baseValue: null, baseTime: null };
+  let base = Number(p.baseValue);
+  let baseTime = Number(p.baseTime) || null;
+  if (!(base > 0)) {
+    const first = bars.find((b) => !baseTime || b.time >= baseTime);
+    base = first && Number(first.close);
+    baseTime = first ? first.time : baseTime;
+  }
+  if (!(base > 0)) return { bars: [], baseValue: null, baseTime };
+  const cv = p.compareMode === 'percent'
+    ? (v) => (Number(v) / base - 1) * 100
+    : (v) => (Number(v) / base) * 100;
+  return {
+    bars: bars.map((b) => ({ ...b, open: cv(b.open), high: cv(b.high), low: cv(b.low), close: cv(b.close) })),
+    baseValue: base,
+    baseTime,
+  };
+}
+
+function scheduleBase(ctx, h, d, p) {
+  if (p.compareMode === 'price' || p.baseValue > 0 || !(d.baseValue > 0) || h.basePending) return;
+  h.basePending = true;
+  queueMicrotask(() => {
+    h.basePending = false;
+    if (ctx.patchProps) ctx.patchProps({ baseValue: d.baseValue, baseTime: d.baseTime });
+  });
+}
 
 registry.set('candles', {
-  meta: { label: '캔들', pane: 'main', paneH: 95, auto: true, unique: true, schema: [] },
-  defaults: () => ({}),
-  normalize: (it) => ({}),
+  meta: { label: '캔들', pane: 'main', paneH: 95, auto: true, configureOnAdd: true,
+    summary: (it) => `${it.props.code || '상속'} ${it.props.tf || ''} ${it.props.placement === 'pane' ? '서브' : '중첩'}`.trim(),
+    schema: [
+    { k: 'code', t: 'text', label: '종목코드', pattern: '^\\d{6}$', maxLength: 6, def: '', create: true,
+      patch: (v) => ({ code: v, baseTime: null, baseValue: null }) },
+    { k: 'tf', t: 'select', label: '주기', def: '1m', create: true, options: [
+      ['tick', '틱'], ['1m', '1분'], ['5m', '5분'], ['30m', '30분'],
+      ['1d', '일'], ['1w', '주'], ['1M', '월'],
+    ], patch: (v) => ({ tf: v, baseTime: null, baseValue: null }) },
+    { k: 'placement', t: 'select', label: '표시', def: 'overlay', create: true,
+      options: [['overlay', '오버레이'], ['pane', '서브차트']],
+      patch: (v, x) => ({ placement: v,
+        paneId: v === 'pane'
+          ? ((!x.props.paneId || x.props.paneId === 'main') ? `compare:${x.id}` : x.props.paneId)
+          : 'main' }) },
+    { k: 'paneId', t: 'text', label: '페인', maxLength: 32, def: 'main' },
+    { k: 'scaleId', t: 'select', label: '가격축', def: 'auto',
+      options: [['auto', '자동'], ['right', '오른쪽'], ['left', '왼쪽'], ['compare', '비교공유']] },
+    { k: 'compareMode', t: 'select', label: '비교', def: 'price', create: true,
+      options: [['price', '원가격'], ['percent', '등락률'], ['indexed100', '기준값100']],
+      patch: (v) => ({ compareMode: v, baseTime: null, baseValue: null }) },
+    { k: 'upColor', t: 'color', label: '상승색', def: '#26a69a' },
+    { k: 'downColor', t: 'color', label: '하락색', def: '#ef5350' },
+  ] },
+  defaults: (x) => {
+    const colors = candleColors(x && x.id);
+    return { code: (x && x.form && x.form.code) || '', tf: (x && x.form && x.form.tf) || '1m',
+      placement: 'overlay', paneId: 'main', scaleId: x && x.id === 'candles1' ? 'right' : 'auto', compareMode: 'price',
+      baseTime: null, baseValue: null, upColor: colors[0], downColor: colors[1] };
+  },
+  source: (it, x) => ({ code: codeOf(it.props.code, x.form.code), tf: tfOf(it.props.tf, x.form.tf) }),
+  normalize: (it, x) => {
+    const code = codeOf(it.props.code, x.form.code);
+    const tf = tfOf(it.props.tf, x.form.tf);
+    const placement = it.props.placement === 'pane' ? 'pane' : 'overlay';
+    const compareMode = ['percent', 'indexed100'].includes(it.props.compareMode) ? it.props.compareMode : 'price';
+    const paneId = String(it.props.paneId || (placement === 'pane' ? `compare:${x.id}` : 'main'));
+    let scaleId = String(it.props.scaleId || 'auto');
+    if (scaleId === 'auto') scaleId = placement === 'pane' ? 'right'
+      : (compareMode === 'price' ? `y:${x.id}` : 'compare');
+    return { code, tf, dataKey: `${code}|${tf}`, placement, paneId, scaleId, compareMode,
+      baseTime: Number(it.props.baseTime) || null, baseValue: Number(it.props.baseValue) || null,
+      upColor: P(it.props, 'upColor', '#26a69a'), downColor: P(it.props, 'downColor', '#ef5350') };
+  },
+  version: (ctx, p) => { const d = dataOf(ctx, p); return (d && d.barsHash) || '0'; },
   ensure(ctx, p, pane) {
     const s = ctx.engine.addSeries('candlestick', {
-      upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
-      wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+      priceScaleId: p.scaleId, upColor: p.upColor, downColor: p.downColor, borderVisible: false,
+      wickUpColor: p.upColor, wickDownColor: p.downColor,
+      priceFormat: p.compareMode === 'price' ? { type: 'price' }
+        : { type: 'price', precision: 2, minMove: 0.01 },
     }, pane);
-    s.setData(ctx.bars);
-    return { series: [s] };
+    if (p.scaleId === 'left' || p.scaleId === 'right') {
+      ctx.engine.setSeriesScaleOptions(s, { visible: true, autoScale: true });
+    }
+    const d = candleData(dataOf(ctx, p), p);
+    s.setData(d.bars);
+    const h = { series: [s], basePending: false };
+    scheduleBase(ctx, h, d, p);
+    return h;
   },
-  update(ctx, h) { h.series[0].setData(ctx.bars); },
-  live(ctx, h) { if (ctx.liveBar) h.series[0].update(ctx.liveBar); },
+  update(ctx, h, p) {
+    h.series[0].applyOptions({ priceScaleId: p.scaleId, upColor: p.upColor, downColor: p.downColor,
+      wickUpColor: p.upColor, wickDownColor: p.downColor,
+      priceFormat: p.compareMode === 'price' ? { type: 'price' }
+        : { type: 'price', precision: 2, minMove: 0.01 } });
+    if (p.scaleId === 'left' || p.scaleId === 'right') {
+      ctx.engine.setSeriesScaleOptions(h.series[0], { visible: true, autoScale: true });
+    }
+    const d = candleData(dataOf(ctx, p), p);
+    h.series[0].setData(d.bars);
+    scheduleBase(ctx, h, d, p);
+  },
+  live(ctx, h, p) {
+    const d = dataOf(ctx, p);
+    if (!d || !d.liveBar) return;
+    const one = candleData({ bars: [d.liveBar] }, p).bars[0];
+    if (one) h.series[0].update(one);
+  },
 });
 
 registry.set('ma', {
@@ -285,5 +393,9 @@ export function meta(kind) { const i = registry.get(kind); return i ? i.meta : n
 export function catalog() {
   return [...registry.entries()].map(([k, v]) => ({ kind: k, ...v.meta }));
 }
-export function defaults(kind) { return registry.get(kind).defaults(); }
+export function defaults(kind, ctx) { return registry.get(kind).defaults(ctx); }
+export function source(kind, item, ctx) {
+  const impl = registry.get(kind);
+  return impl && impl.source ? impl.source(item, ctx) : null;
+}
 export function register(kind, impl) { registry.set(kind, impl); }

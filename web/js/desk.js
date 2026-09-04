@@ -10,6 +10,8 @@ function hash(o) {
   return h.toString(16);
 }
 
+const idNum = (s) => { const m = /(\d+)$/.exec(s || ''); return m ? +m[1] : 0; };
+
 export function createDesk(canvas, tabbar, cat, io) {
   const live = new Map();
   let tabHash = '';
@@ -17,16 +19,24 @@ export function createDesk(canvas, tabbar, cat, io) {
   const bounds = () => ({ w: canvas.clientWidth, h: canvas.clientHeight });
   const rectOf = (f, b) => (f.winState === 'max' ? { x: 0, y: 0, w: b.w, h: b.h } : f.rect);
 
+  // 가시성은 forms에서 계산한다. z는 순서 힌트로만 쓴다.
   function zList(st) {
-    const v = st.vds && st.vds[st.activeVd];
-    return v ? (v.z || []).filter((id) => st.forms[id]) : [];
+    const vid = st.activeVd;
+    if (!st.vds[vid]) return [];
+    const z = (st.vds[vid].z || []);
+    const rank = (id) => { const i = z.indexOf(id); return i < 0 ? 1e9 + idNum(id) : i; };
+    return Object.keys(st.forms)
+      .filter((id) => st.forms[id].vd === vid || st.forms[id].allVd)
+      .sort((a, b) => rank(a) - rank(b));
   }
 
   function raise(id) {
     const st = io.getState();
     const v = st.vds[st.activeVd];
-    if (!v || v.z[v.z.length - 1] === id) return;
-    io.patch('vds/' + st.activeVd, { z: [...v.z.filter((x) => x !== id), id] });
+    if (!v) return;
+    const z = v.z || [];
+    if (z[z.length - 1] === id) return;
+    io.patch('vds/' + st.activeVd, { z: [...z.filter((x) => x !== id), id] });
   }
 
   function toggleMax(id) {
@@ -74,7 +84,7 @@ export function createDesk(canvas, tabbar, cat, io) {
         max: () => toggleMax(id),
         close: () => io.close(id),
         menu: (x, y) => io.menu(id, x, y),
-        live: () => cat.resize(f.screen, live.get(id) && live.get(id).handle),
+        live: () => { const c = live.get(id); if (c) cat.resize(c.kind, c.handle); },
       },
     });
     frame.setRect(rectOf(f, b));
@@ -91,6 +101,7 @@ export function createDesk(canvas, tabbar, cat, io) {
     for (const id of mins) {
       const b = document.createElement('button');
       b.className = 'tab';
+      b.type = 'button';
       b.textContent = cat.title(st.forms[id]);
       b.onclick = () => { io.patch('forms/' + id, { winState: 'normal' }); raise(id); };
       tabbar.append(b);
@@ -106,7 +117,8 @@ export function createDesk(canvas, tabbar, cat, io) {
     const ops = [];
 
     for (const [id, cur] of [...live.entries()]) {
-      if (!want.has(id) || cur.kind !== st.forms[id].screen) {
+      const f = st.forms[id];
+      if (!want.has(id) || !f || cur.kind !== f.screen) {
         cat.unmount(cur.kind, cur.handle);
         cur.frame.destroy();
         live.delete(id);
@@ -119,7 +131,7 @@ export function createDesk(canvas, tabbar, cat, io) {
       let cur = live.get(id);
       let fresh = false;
       if (!cur) { cur = ensure(id, f, b); live.set(id, cur); ops.push('+' + id); fresh = true; }
-      const dh = hash({ c: f.code, t: f.tf, y: f.body, n: f.title, g: st.globalOn });
+      const dh = hash({ c: f.code, t: f.tf, y: f.body, n: f.title, a: f.allVd, g: st.globalOn });
       const gh = hash({ r: rectOf(f, b), s: f.winState, z: i });
       if (cur.dataHash !== dh) {
         cur.frame.setTitle(cat.title(f), cat.sub(f));

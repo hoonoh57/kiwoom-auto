@@ -138,28 +138,28 @@ function closeForm(id) {
 
 /* ---- VD 조작 ---- */
 function addVd() {
-  if (ds.VD_MAX && Object.keys(st.vds).length >= ds.VD_MAX) return;
+  if (ds.VD_MAX && Object.keys(st.vds).length >= ds.VD_MAX) { bus.push('[VD+] 상한 도달'); return; }
   const id = ds.nextVdId(st);
   const order = Object.keys(st.vds).length;
-  patch('', { vds: { [id]: ds.defaultVd(String(order + 1), order) }, activeVd: id });
+  patch('', { vds: { [id]: ds.defaultVd('VD' + (order + 1), order) }, activeVd: id });
   bus.push('[VD+] ' + id);
 }
 
 async function delVd(id) {
-  if (Object.keys(st.vds).length <= 1) { bus.push('[VD-] 마지막 VD는 삭제 불가'); return; }
+  const ids = ds.vdOrder(st);
+  if (ids.length <= 1) { bus.push('[VD-] 마지막 가상화면은 삭제할 수 없습니다'); return; }
   const own = Object.keys(st.forms).filter((fid) => st.forms[fid].vd === id);
-  if (!confirm(`${st.vds[id].label} 삭제. 소속 자식폼 ${own.length}개도 함께 삭제합니다.`)) return;
-  const p = { forms: {}, vds: { [id]: ds.DEL } };
+  if (!window.confirm(`${st.vds[id].label} 삭제. 소속 자식폼 ${own.length}개도 함께 삭제합니다.`)) return;
+  const p = { vds: { [id]: ds.DEL }, forms: {} };
   for (const fid of own) p.forms[fid] = ds.DEL;
-  for (const [vid, v] of Object.entries(st.vds)) {
+  for (const vid of ids) {
     if (vid === id) continue;
-    p.vds[vid] = { z: (v.z || []).filter((x) => !own.includes(x)) };
+    p.vds[vid] = { z: (st.vds[vid].z || []).filter((x) => !own.includes(x)) };
   }
-  if (st.activeVd === id) p.activeVd = ds.vdOrder(st).find((x) => x !== id);
+  if (st.activeVd === id) p.activeVd = ids.find((x) => x !== id);
   delete st.vds[id];
   await patch('', p);
-  await jdel('vds/' + id);
-  bus.push('[VD-] ' + id);
+  bus.push(`[VD-] ${id} forms=${own.length}`);
 }
 
 function vdMenu(id, x, y) {
@@ -197,25 +197,42 @@ function moveForm(id, vid) {
   patch('', { forms: { [id]: { vd: vid } }, vds });
 }
 
+function closeMenu() {
+  const m = document.getElementById('ctx');
+  if (m) m.remove();
+  document.removeEventListener('pointerdown', onDocDown, true);
+  window.removeEventListener('keydown', onMenuKey, true);
+  window.removeEventListener('blur', closeMenu);
+}
+
+function onDocDown(e) {
+  const m = document.getElementById('ctx');
+  if (m && m.contains(e.target)) return;   // 메뉴 내부 클릭은 살려둔다
+  closeMenu();
+}
+
+function onMenuKey(e) { if (e.key === 'Escape') closeMenu(); }
+
 function menuAt(x, y, items) {
-  const old = $('#ctx');
-  if (old) old.remove();
+  closeMenu();
   const m = document.createElement('div');
   m.id = 'ctx';
   m.className = 'ctx';
   for (const [label, fn] of items) {
     const b = document.createElement('button');
+    b.type = 'button';
     b.textContent = label;
-    b.onclick = () => { m.remove(); fn(); };
+    b.addEventListener('click', (e) => { e.stopPropagation(); closeMenu(); fn(); });
     m.append(b);
   }
   document.body.append(m);
-  m.style.left = Math.min(x, window.innerWidth - 220) + 'px';
-  m.style.top = Math.min(y, window.innerHeight - m.offsetHeight - 8) + 'px';
-  setTimeout(() => document.addEventListener('pointerdown', function once() {
-    m.remove();
-    document.removeEventListener('pointerdown', once);
-  }), 0);
+  m.style.left = Math.max(4, Math.min(x, window.innerWidth - m.offsetWidth - 4)) + 'px';
+  m.style.top = Math.max(4, Math.min(y, window.innerHeight - m.offsetHeight - 4)) + 'px';
+  setTimeout(() => {
+    document.addEventListener('pointerdown', onDocDown, true);
+    window.addEventListener('keydown', onMenuKey, true);
+    window.addEventListener('blur', closeMenu);
+  }, 0);
 }
 
 /* ---- 화면검색 / 퀵툴바 / 단축키 ---- */

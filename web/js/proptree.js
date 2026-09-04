@@ -51,7 +51,8 @@ export function renderTree(root, profile, panes, cb) {
         const cx = el('input'); cx.type = 'checkbox';
         cx.checked = !!(it.enabled && it.visible);
         cx.onchange = () => cb.toggleItem(id, cx.checked);
-        irow.append(itw, cx, el('span', 'nlab item', `${id}`), el('span', 'nsub', m.label));
+        const summary = m.summary ? m.summary(it) : m.label;
+        irow.append(itw, cx, el('span', 'nlab item', `${id}`), el('span', 'nsub', summary));
         const dl = el('button', 'del', '✕');
         dl.title = '애드온 삭제';
         dl.onclick = () => cb.deleteItem(id);
@@ -63,18 +64,35 @@ export function renderTree(root, profile, panes, cb) {
           for (const f of m.schema) {
             const pr = el('div', 'prow');
             const wrap = el('span', 'pv');
-            const inp = el('input');
             const cv = it.props[f.k] === undefined ? f.def : it.props[f.k];
-            if (f.t === 'color') { inp.type = 'color'; inp.value = cv; }
-            else { inp.type = 'number'; inp.value = cv; inp.min = f.min; inp.max = f.max; }
+            const inp = el(f.t === 'select' ? 'select' : 'input');
+            if (f.t === 'select') {
+              for (const pair of f.options || []) {
+                const o = el('option', null, pair[1]);
+                o.value = pair[0];
+                inp.append(o);
+              }
+              inp.value = cv;
+            } else if (f.t === 'color') { inp.type = 'color'; inp.value = cv; }
+            else if (f.t === 'text') {
+              inp.type = 'text'; inp.value = cv || '';
+              if (f.pattern) inp.pattern = f.pattern;
+              if (f.maxLength) inp.maxLength = f.maxLength;
+            } else { inp.type = 'number'; inp.value = cv; inp.min = f.min; inp.max = f.max; }
             const send = () => {
-              let v = f.t === 'color' ? inp.value : Math.round(+inp.value);
-              if (f.t !== 'color') {
+              let v = (f.t === 'color' || f.t === 'text' || f.t === 'select')
+                ? inp.value : Math.round(+inp.value);
+              if (f.t === 'text' && f.pattern && !(new RegExp(f.pattern)).test(v)) {
+                inp.reportValidity();
+                return;
+              }
+              if (!['color', 'text', 'select'].includes(f.t)) {
                 if (!isFinite(v)) return;
                 v = Math.min(f.max, Math.max(f.min, v));
                 inp.value = v;
               }
-              cb.patchProp(id, f.k, v);
+              const patch = f.patch ? f.patch(v, { id, props: it.props }) : { [f.k]: v };
+              cb.patchProps(id, patch);
             };
             inp.onchange = send;
             wrap.append(inp);
@@ -103,7 +121,58 @@ export function renderAddBar(root, panes, cb) {
   sel.onchange = () => {
     const kind = sel.value;
     sel.selectedIndex = 0;
-    if (kind && kind !== '+ 추가') cb.addItem(kind);
+    if (!kind || kind === '+ 추가') return;
+    const meta = addons.meta(kind);
+    if (!meta || !meta.configureOnAdd) { cb.addItem(kind); return; }
+    const old = root.querySelector('.addcfg');
+    if (old) old.remove();
+    const draft = cb.prepareItem(kind);
+    const box = el('div', 'addcfg');
+    box.append(el('div', 'addcfg-title', `${meta.label} 추가`));
+    const controls = [];
+    for (const f of meta.schema.filter((x) => x.create)) {
+      const row = el('label', 'addcfg-row');
+      const input = el(f.t === 'select' ? 'select' : 'input');
+      const value = draft.props[f.k] === undefined ? f.def : draft.props[f.k];
+      if (f.t === 'select') {
+        for (const pair of f.options || []) {
+          const o = el('option', null, pair[1]);
+          o.value = pair[0];
+          input.append(o);
+        }
+        input.value = value;
+      } else {
+        input.type = f.t === 'text' ? 'text' : 'number';
+        input.value = value || '';
+        if (f.pattern) input.pattern = f.pattern;
+        if (f.maxLength) input.maxLength = f.maxLength;
+      }
+      row.append(el('span', null, f.label), input);
+      box.append(row);
+      controls.push([f, input]);
+    }
+    const actions = el('div', 'addcfg-actions');
+    const cancel = el('button', null, '취소');
+    cancel.type = 'button';
+    cancel.onclick = () => box.remove();
+    const add = el('button', 'on', '추가');
+    add.type = 'button';
+    add.onclick = () => {
+      let props = { ...draft.props };
+      for (const [f, input] of controls) {
+        if (!input.checkValidity()) { input.reportValidity(); return; }
+        const value = ['text', 'select', 'color'].includes(f.t) ? input.value : Math.round(+input.value);
+        const patch = f.patch ? f.patch(value, { id: draft.id, props }) : { [f.k]: value };
+        props = { ...props, ...patch };
+      }
+      cb.addItem(kind, { id: draft.id, props });
+      box.remove();
+    };
+    actions.append(cancel, add);
+    box.append(actions);
+    root.append(box);
+    const first = controls[0] && controls[0][1];
+    if (first) { first.focus(); first.select && first.select(); }
   };
   root.append(sel);
 }

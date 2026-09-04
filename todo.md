@@ -2,9 +2,9 @@
 
 ## 한 일
 
-- [x] 2026-09-04 공식 영웅문4 도움말에서 8개 가상화면, 상단 선택란, `Ctrl+1`~`Ctrl+8`, VD별 화면 배치, 전체/현재 VD 종목연동, 모든 VD 동일 위치 표시, 공유그룹·종목연계 동작을 확인했다.
-- [x] `rules.md` PART B의 ENGINE/ADDON/BRIDGE/STATE 좌표, 허용·금지 어휘, 식별자, effective, 검증·acceptance 경로를 프로젝트 값으로 채웠다.
-- [x] `design.md`를 고정 8개 VD 요구와 D1~D14 형식에 맞춰 재작성하고, 미완료 게이트 때문에 상태를 DRAFT로 교정했다.
+- [x] 다종목 캔들의 종목·주기·overlay/pane·독립축·등락률/기준값100 비교 모델과 C1~C5 trace를 설계에 확정했다.
+- [x] 사용자가 2026-09-05 다종목 캔들 설계를 APPROVED하고 4축 침범 금지 조건으로 구현을 지시했다.
+- [x] 캔들 추가 전 종목·주기·표시·비교 설정 UI를 구현하고 C0 정적 검토와 C1~C5 자동검증을 통과했다.
 
 ## 할 일
 
@@ -14,18 +14,20 @@ REMEDIATION_REQUIRED
 
 ```text
 branch       : main
-commit       : 0aef1e8d833d6efe873c320b5c0400e7604720d0
-worktree     : 이번 문서 변경과 미추적 web/js/bus.js, desk.js, deskspec.js, frame.js,
-               screens.js, screens/ 존재; 미추적 제품 코드는 이번 문서 tranche에서 수정하지 않음
-STATE        : state/workspace.json schemaVersion 4
+commit       : 66f0aae8ff35dacd02e5cb1129afeade3df2c585
+worktree     : 기존 app.js/desk.js 변경을 보존하고 다종목 캔들 구현·문서·테스트 변경 존재
+STATE        : state/workspace.json schemaVersion 5
 대상 스키마  : schemaVersion 5
-설계 상태    : DRAFT
+설계 상태    : APPROVED (다종목 캔들 범위)
 OPEN         : 0
-게이트       : A2.5 FAIL — C1 산출물과 C3(T12) 미완료, C4 사용자 승인 전
-다음 설계 ID : D4.schema.root, D8.hash.canonical, D11.trace.form
+게이트       : 다종목 캔들 자동검증 PASS; 실제 브라우저 acceptance 대기
+다음 설계 ID : D3.chart.candle-source, D5.candles.compare,
+               D7.chart.data-diff, D11.trace.multi-symbol-candles
 ```
 
 - [ ] 설계 tranche 1: `state/workspace.v5.fixture.json`과 실제 propsHash가 들어간 `tests/fixtures/desk-traces.json`을 만든다.
+- [x] 다종목 캔들 C1~C5 overlay/pane/locality/idempotence 자동검증을 구현했다.
+- [ ] 실제 브라우저에서 캔들 속성 편집, 다종목 오버레이, 등락률/기준값100, 서브차트를 확인한다.
 - [ ] 현재 `check.py`의 `[PASS]`는 C1~C7 보조 static 결과뿐이므로 ARCH PASS로 해석하지 않는다.
 - [ ] architecture defect: 미추적 `desk.js`의 desired가 `z`만 사용해 `globalOn`, `form.visible`,
       다른 VD 소속 `allVd` 폼을 반영하지 않는다(D7/D9, I3~I5).

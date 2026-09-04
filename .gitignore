@@ -1,4 +1,5 @@
-state/
+state/*
+!state/workspace.v6.fixture.json
 data/
 .venv/
 __pycache__/

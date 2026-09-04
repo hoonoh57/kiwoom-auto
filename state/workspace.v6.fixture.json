@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 6,
+  "globalOn": true,
+  "activeVd": "vd1",
+  "symLink": "vd",
+  "layout": {
+    "sidebarW": 300,
+    "snapPx": 8
+  },
+  "seq": {
+    "form": 2,
+    "snapshot": 1
+  },
+  "vds": {
+    "vd1": {
+      "slot": 1,
+      "label": "1",
+      "enabled": true,
+      "z": [
+        "f1"
+      ]
+    },
+    "vd2": {
+      "slot": 2,
+      "label": "2",
+      "enabled": false,
+      "z": []
+    },
+    "vd3": {
+      "slot": 3,
+      "label": "3",
+      "enabled": false,
+      "z": []
+    },
+    "vd4": {
+      "slot": 4,
+      "label": "4",
+      "enabled": false,
+      "z": []
+    },
+    "vd5": {
+      "slot": 5,
+      "label": "5",
+      "enabled": false,
+      "z": []
+    },
+    "vd6": {
+      "slot": 6,
+      "label": "6",
+      "enabled": false,
+      "z": []
+    },
+    "vd7": {
+      "slot": 7,
+      "label": "7",
+      "enabled": false,
+      "z": []
+    },
+    "vd8": {
+      "slot": 8,
+      "label": "8",
+      "enabled": false,
+      "z": []
+    }
+  },
+  "forms": {
+    "f1": {
+      "screen": "chart",
+      "vd": "vd1",
+      "allVd": false,
+      "visible": true,
+      "title": null,
+      "code": "005930",
+      "tf": "1m",
+      "link": "follow",
+      "shareGroup": "all",
+      "rect": {
+        "x": 12,
+        "y": 12,
+        "w": 820,
+        "h": 520
+      },
+      "winState": "normal",
+      "prevRect": {
+        "x": 12,
+        "y": 12,
+        "w": 820,
+        "h": 520
+      },
+      "body": {
+        "panes": [],
+        "items": {},
+        "order": [],
+        "view": {},
+        "ui": {}
+      }
+    }
+  },
+  "snapshots": {},
+  "undo": null
+}

@@ -139,12 +139,18 @@ export function createDesk(canvas, tabbar, cat, io) {
         if (!fresh) ops.push('~' + id);
       }
       if (cur.geoHash !== gh) {
+        const rs = JSON.stringify(rectOf(f, b));
+        const why = [];
+        if (cur.gr !== rs) why.push('r');
+        if (cur.gs !== f.winState) why.push('s');
+        if (cur.gi !== i) why.push('z');
+        cur.gr = rs; cur.gs = f.winState; cur.gi = i;
         cur.frame.setRect(rectOf(f, b));
         cur.frame.setState(f.winState);
         cur.frame.setZ(i);
         cat.resize(f.screen, cur.handle);
         cur.geoHash = gh;
-        if (!fresh) ops.push('g' + id);
+        if (!fresh) ops.push('g' + id + '[' + why.join('') + ']');
       }
       cur.frame.setActive(i === ids.length - 1 && f.winState !== 'min');
     });

@@ -9,7 +9,14 @@ Copy
 
 Copy
 ## 할 일
-[ ] D-Q1~Q4 사용자 결정 (design.md 14절) [ ] design.md APPROVED 전환 후 T12 수행 [ ] 구현 tranche 1: deskspec.js + 마이그레이션 4→5 (코드 없이 선행 불가) [ ] 구현 tranche 2: frame.js(ENGINE) + desk.js(BRIDGE) [ ] 구현 tranche 3: screens.js + screens/chart.js (기존 차트 이식) [ ] 구현 tranche 4: 타이틀바 VD 버튼 / 화면검색 콤보 / 퀵툴바 [ ] 구현 tranche 5: screens/quote.js, order.js, log.js [ ] check.py를 start.bat 선행 게이트로 연결
+[x] D-Q1~Q4 결정 -> design.md 14절 APPROVED
+[x] check.py 정적 게이트 PASS (C1~C7)
+[ ] 구현 tranche 1: deskspec.js (완료 후 dry-run 검증)
+[ ] 구현 tranche 2: frame.js(ENGINE) + desk.js(BRIDGE) + 마이그레이션 적용
+[ ] 구현 tranche 3: screens.js + screens/chart.js (기존 차트 이식)
+[ ] 구현 tranche 4: 타이틀바 VD 버튼 / 화면검색 콤보 / 퀵툴바 / Ctrl+1~8
+[ ] 구현 tranche 5: screens/quote.js, order.js, log.js
+[ ] check.py를 start.bat 선행 게이트로 연결
 
 Copy
 ## 미해결 결함 (증거)

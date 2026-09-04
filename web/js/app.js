@@ -116,7 +116,7 @@ function render() {
   renderTop();
   if (!desk) return;
   const r = desk.apply();
-  if (r.ops.length) bus.push(`[DESK] ${st.activeVd} forms=${(st.vds[st.activeVd] || { z: [] }).z.length} ops=${r.ops.length} ${r.ops.join(',')}`);
+  if (r.ops.length) bus.push(`[DESK] ${st.activeVd} live=${desk.mounted()} ops=${r.ops.length} ${r.ops.join(',')}`);
 }
 
 /* ---- 폼 조작 ---- */

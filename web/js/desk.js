@@ -118,12 +118,11 @@ export function createDesk(canvas, tabbar, cat, io) {
 
     for (const [id, cur] of [...live.entries()]) {
       const f = st.forms[id];
-      if (!want.has(id) || !f || cur.kind !== f.screen) {
-        cat.unmount(cur.kind, cur.handle);
-        cur.frame.destroy();
-        live.delete(id);
-        ops.push('-' + id);
-      }
+      if (want.has(id) && f && cur.kind === f.screen) continue;
+      live.delete(id);   // 먼저 지운다: 이후 예외가 나도 재시도 루프에 빠지지 않는다
+      try { cat.unmount(cur.kind, cur.handle); } catch (e) { io.log('[DESK!] unmount ' + id + ' ' + e); }
+      try { cur.frame.destroy(); } catch (e) { io.log('[DESK!] destroy ' + id + ' ' + e); }
+      ops.push('-' + id);
     }
 
     ids.forEach((id, i) => {

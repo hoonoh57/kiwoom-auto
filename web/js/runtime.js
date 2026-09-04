@@ -79,8 +79,8 @@ export function createRuntime(engine) {
 
       if (geo) {
         engine.setPaneStretch(panes.map((p) => p.h));
-        engine.setBarSpacing(profile.barSpacing);
-        engine.setAutoScale(profile.scale.autoScale);
+        engine.setBarSpacing(profile.view.barSpacing);
+        engine.setAutoScale(profile.view.autoScale);
         engine.scrollToRealTime();
       }
       return { ops, panes };

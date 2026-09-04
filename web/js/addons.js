@@ -103,7 +103,7 @@ const registry = new Map();
 const P = (props, k, d) => (props[k] === undefined ? d : props[k]);
 
 registry.set('candles', {
-  meta: { label: '캔들', pane: 'main', unique: true, schema: [] },
+  meta: { label: '캔들', pane: 'main', paneH: 95, auto: true, unique: true, schema: [] },
   defaults: () => ({}),
   normalize: (it) => ({}),
   ensure(ctx, p, pane) {
@@ -119,7 +119,7 @@ registry.set('candles', {
 });
 
 registry.set('ma', {
-  meta: { label: '이동평균', pane: 'main', schema: [
+  meta: { label: '이동평균', pane: 'main', paneH: 95, auto: true, schema: [
     { k: 'len', t: 'int', label: '기간', min: 2, max: 400, def: 20 },
     { k: 'color', t: 'color', label: '색', def: '#7fb2f0' },
     { k: 'width', t: 'int', label: '굵기', min: 1, max: 4, def: 1 },
@@ -143,7 +143,7 @@ registry.set('ma', {
 });
 
 registry.set('volume', {
-  meta: { label: '거래량', pane: 'vol', unique: true, schema: [] },
+  meta: { label: '거래량', pane: 'vol', paneH: 95, auto: true, unique: true, schema: [] },
   defaults: () => ({}),
   normalize: () => ({}),
   ensure(ctx, p, pane) {
@@ -157,7 +157,7 @@ registry.set('volume', {
 });
 
 registry.set('macd', {
-  meta: { label: 'MACD', pane: 'macd', schema: [
+  meta: { label: 'MACD', pane: 'macd', paneH: 95, auto: true, schema: [
     { k: 'fast', t: 'int', label: '단기', min: 2, max: 100, def: 12 },
     { k: 'slow', t: 'int', label: '장기', min: 3, max: 200, def: 26 },
     { k: 'signal', t: 'int', label: '시그널', min: 2, max: 100, def: 9 },
@@ -196,7 +196,7 @@ registry.set('macd', {
 });
 
 registry.set('rsi', {
-  meta: { label: 'RSI', pane: 'rsi', schema: [
+  meta: { label: 'RSI', pane: 'rsi', paneH: 95, auto: true, schema: [
     { k: 'len', t: 'int', label: '기간', min: 2, max: 100, def: 14 },
     { k: 'upper', t: 'int', label: '과매수', min: 50, max: 99, def: 70 },
     { k: 'lower', t: 'int', label: '과매도', min: 1, max: 50, def: 30 },
@@ -232,7 +232,7 @@ registry.set('rsi', {
 });
 
 registry.set('amount', {
-  meta: { label: '누적거래대금', pane: 'amt', schema: [
+  meta: { label: '누적거래대금', pane: 'amt', paneH: 95, auto: true, schema: [
     { k: 'color', t: 'color', label: '색', def: '#4a9d8f' },
   ] },
   defaults: () => ({ color: '#4a9d8f' }),
@@ -254,7 +254,7 @@ registry.set('amount', {
 });
 
 registry.set('signals', {
-  meta: { label: '매매신호', pane: 'main', schema: [
+  meta: { label: '매매신호', pane: 'main', paneH: 95, auto: false, schema: [
     { k: 'fast', t: 'int', label: '단기MA', min: 2, max: 100, def: 5 },
     { k: 'slow', t: 'int', label: '장기MA', min: 3, max: 200, def: 20 },
   ] },

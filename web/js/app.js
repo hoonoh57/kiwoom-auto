@@ -2,6 +2,7 @@ import { createEngine } from './core.js';
 import { createRuntime, activePanes } from './runtime.js';
 import * as addons from './addons.js';
 import { renderTree, renderAddBar, syncHeightInputs } from './proptree.js';
+import { defaultWindow, reconcile } from './statespec.js';
 
 const $ = (s) => document.querySelector(s);
 const api = async (u, o) => {
@@ -27,7 +28,14 @@ let ST = null, ACT = null, PROF = null, HEALTH = null, PANES = [];
 let saveTimer = null;
 let geoLock = 0;
 
-const q = () => `vd=${ACT.vd}&code=${ACT.code}&tf=${ACT.tf}`;
+const nodePath = (path) => `/api/node?path=${encodeURIComponent(path)}`;
+const profilePath = () => `profiles/${ACT.vd}|${ACT.code}|${ACT.tf}`;
+const getNode = (path) => api(nodePath(path));
+const patchNode = (path, body) => api(nodePath(path), J('PATCH', body));
+async function loadProfile() {
+  const saved = await getNode(profilePath());
+  return reconcile(Object.keys(saved).length ? saved : defaultWindow(ACT.tf));
+}
 
 async function getBars(code, tf, force) {
   const k = code + '|' + tf, c = barCache.get(k);
@@ -51,8 +59,8 @@ async function getSignals(code, tf, h, fast, slow) {
 function savePanes() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    api(`/api/profile?${q()}`, J('PATCH', { panes: PROF.panes,
-                                            barSpacing: engine.getBarSpacing() })).catch(() => {});
+    api(nodePath(profilePath()), J('PATCH', { panes: PROF.panes,
+                          view: { barSpacing: engine.getBarSpacing() } })).catch(() => {});
   }, 500);
 }
 
@@ -82,16 +90,16 @@ const CB = {
   toggleOpen: async (k, v) => {
     PROF.ui.open[k] = v;
     tree();
-    api(`/api/profile?${q()}`, J('PATCH', { ui: { open: { [k]: v } } })).catch(() => {});
+    patchNode(profilePath(), { ui: { open: { [k]: v } } }).catch(() => {});
   },
   toggleItem: async (id, on) => {
     PROF.items[id].enabled = on; PROF.items[id].visible = on;
-    await api(`/api/profile?${q()}`, J('PATCH', { items: { [id]: { enabled: on, visible: on } } }));
+    await patchNode(profilePath(), { items: { [id]: { enabled: on, visible: on } } });
     await draw(false);
   },
   patchProp: async (id, k, v) => {
     PROF.items[id].props[k] = v;
-    await api(`/api/profile?${q()}`, J('PATCH', { items: { [id]: { props: { [k]: v } } } }));
+    await patchNode(profilePath(), { items: { [id]: { props: { [k]: v } } } });
     await draw(false);
   },
   previewHeight: (paneId, h) => {
@@ -102,11 +110,18 @@ const CB = {
   },
   commitHeight: (paneId, h) => { CB.previewHeight(paneId, h); savePanes(); },
   deleteItem: async (id) => {
-    PROF = await api(`/api/profile/item?${q()}&id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await api(nodePath(`${profilePath()}/items/${encodeURIComponent(id)}`), { method: 'DELETE' });
+    PROF = await loadProfile();
     await draw(false);
   },
   deletePane: async (paneId) => {
-    PROF = await api(`/api/profile/pane?${q()}&paneId=${encodeURIComponent(paneId)}`, { method: 'DELETE' });
+    const removed = {};
+    for (const id of PROF.order) {
+      if ((PROF.items[id].props.paneId || 'main') === paneId) removed[id] = '__delete__';
+    }
+    await patchNode(profilePath(), { items: removed });
+    await api(nodePath(`${profilePath()}/panes/${encodeURIComponent(paneId)}`), { method: 'DELETE' });
+    PROF = await loadProfile();
     await draw(false);
   },
   addItem: async (kind) => {
@@ -124,7 +139,10 @@ const CB = {
       if (!PROF.panes.some((p) => p.id === pid)) pane = { id: pid, label: m.label, h: 95 };
     }
     try {
-      PROF = await api(`/api/profile/item?${q()}`, J('POST', { id, kind, props, pane }));
+      const update = { items: { [id]: { kind, enabled: true, visible: true, props } },
+               order: [...PROF.order, id] };
+      if (pane) update.panes = [...PROF.panes, pane];
+      PROF = reconcile(await patchNode(profilePath(), update));
       log(`[ADD] ${id} -> ${props.paneId}`);
       await draw(false);
     } catch (e) { log('[ADD-FAIL] ' + e.message); }
@@ -181,9 +199,9 @@ async function draw(force, geo) {
 async function switchTo(vd, code, tf) {
   try {
     pullHeights();
-    ACT = await api('/api/state/active', J('PATCH', { vd, code, tf }));
-    ST = await api('/api/state');
-    PROF = (await api(`/api/profile?${q()}`)).profile;
+    ACT = await patchNode(`active`, { vd, code, tf });
+    ST = await getNode('');
+    PROF = reconcile(await getNode(profilePath()));
     renderTop();
     await draw(false, true);
     await refreshQuote();
@@ -229,9 +247,19 @@ async function order(side) {
   $('#sell').onclick = () => order('SELL');
 
   HEALTH = await api('/api/health');
-  ST = await api('/api/state');
+  ST = await getNode('');
+  if (!ST.vds) {
+    ST = await patchNode('', { schemaVersion: 3, globalOn: true,
+      active: { vd: 'vd1', code: '005930', tf: '1m' },
+      vds: { vd1: { label: 'VD1', code: '005930', name: '삼성전자', tf: '1m' },
+              vd2: { label: 'VD2', code: '000660', name: 'SK하이닉스', tf: '5m' },
+              vd3: { label: 'VD3', code: '035720', name: '카카오', tf: '1d' },
+              vd4: { label: 'VD4', code: '005380', name: '현대차', tf: '1d' } },
+      profiles: {} });
+  }
   ACT = ST.active;
-  PROF = (await api(`/api/profile?${q()}`)).profile;
+  PROF = await loadProfile();
+  PROF = await patchNode(profilePath(), PROF);
   renderTop();
   await draw(true, true);
   await refreshQuote(); await refreshBalance();

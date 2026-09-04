@@ -1,19 +1,14 @@
 import time
+from urllib.parse import unquote
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, data, kiwoom, state, strategy
+from . import config, data, kiwoom, store, strategy
 
 app = FastAPI(title="kiwoom-auto")
-
-_REQ = ["load", "save", "get_profile", "patch_profile", "set_active",
-        "add_item", "remove_item", "remove_pane"]
-_missing = [n for n in _REQ if not hasattr(state, n)]
-if _missing:
-    raise RuntimeError("state 모듈 함수 누락: " + ", ".join(_missing))
 
 
 def _bars(code, tf, force=False):
@@ -39,76 +34,19 @@ def health():
             "base": config.BASE, "tf": list(config.TFSEC), "tfLabel": config.TFLABEL}
 
 
-@app.get("/api/state")
-def get_state():
-    return state.load()
+@app.get("/api/node")
+def node_get(path: str = ""):
+    return store.get(unquote(path))
 
 
-class Active(BaseModel):
-    vd: str
-    code: str
-    tf: str
+@app.patch("/api/node")
+def node_patch(body: dict, path: str = ""):
+    return store.patch(unquote(path), body)
 
 
-@app.patch("/api/state/active")
-def patch_active(a: Active):
-    if a.tf not in config.TFSEC:
-        raise HTTPException(400, "unknown tf: " + a.tf)
-    st = state.load()
-    try:
-        return state.set_active(st, a.vd, a.code, a.tf)
-    except KeyError as e:
-        raise HTTPException(400, str(e))
-    except AttributeError as e:
-        raise HTTPException(500, "state 모듈 함수 누락: " + str(e))
-
-
-@app.get("/api/profile")
-def get_profile(vd: str, code: str, tf: str):
-    if tf not in config.TFSEC:
-        raise HTTPException(400, "unknown tf")
-    st = state.load()
-    return {"key": state.key(vd, code, tf),
-            "profile": state.get_profile(st, vd, code, tf), "globalOn": st["globalOn"]}
-
-
-@app.patch("/api/profile")
-def patch_profile(vd: str, code: str, tf: str, patch: dict):
-    if tf not in config.TFSEC:
-        raise HTTPException(400, "unknown tf")
-    st = state.load()
-    return state.patch_profile(st, vd, code, tf, patch)
-
-
-class NewItem(BaseModel):
-    id: str
-    kind: str
-    props: dict
-    pane: dict | None = None
-
-
-@app.post("/api/profile/item")
-def create_item(vd: str, code: str, tf: str, it: NewItem):
-    st = state.load()
-    try:
-        return state.add_item(st, vd, code, tf, it.id, it.kind, it.props, it.pane)
-    except KeyError as e:
-        raise HTTPException(409, str(e))
-
-
-@app.delete("/api/profile/item")
-def delete_item(vd: str, code: str, tf: str, id: str):
-    st = state.load()
-    return state.remove_item(st, vd, code, tf, id)
-
-
-@app.delete("/api/profile/pane")
-def delete_pane(vd: str, code: str, tf: str, paneId: str):
-    st = state.load()
-    try:
-        return state.remove_pane(st, vd, code, tf, paneId)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+@app.delete("/api/node")
+def node_delete(path: str):
+    return store.delete(unquote(path))
 
 
 @app.get("/api/bars")

@@ -59,6 +59,7 @@ export function createEngine(el) {
     setBarSpacing(v) { chart.timeScale().applyOptions({ barSpacing: v }); },
     getBarSpacing() { return chart.timeScale().options().barSpacing; },
     setAutoScale(on) { chart.priceScale('right').applyOptions({ autoScale: !!on }); },
+    getAutoScale() { return !!chart.priceScale('right').options().autoScale; },
     scrollToRealTime() { chart.timeScale().scrollToRealTime(); },
     onRangeChange(fn) { chart.timeScale().subscribeVisibleLogicalRangeChange(fn); },
     destroy() { chart.remove(); },

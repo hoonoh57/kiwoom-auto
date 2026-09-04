@@ -1,279 +1,311 @@
-import { createEngine } from './core.js';
-import { createRuntime, activePanes } from './runtime.js';
-import * as addons from './addons.js';
-import { renderTree, renderAddBar, syncHeightInputs } from './proptree.js';
-import { defaultWindow, reconcile, defaultProject, paneDefaultH } from './statespec.js';
+/* app.js - 부팅 / 마이그레이션 / 상단바(VD·화면검색·퀵툴바) / 단일 쓰기 경로 */
+
+import * as ds from './deskspec.js';
+import * as screens from './screens.js';
+import { createDesk } from './desk.js';
+import * as bus from './bus.js';
 
 const $ = (s) => document.querySelector(s);
-const api = async (u, o) => {
-  const r = await fetch(u, o);
-  if (!r.ok) throw new Error((await r.text()).slice(0, 200));
-  return r.json();
-};
-const J = (m, b) => ({ method: m, headers: { 'Content-Type': 'application/json' },
-                       body: JSON.stringify(b) });
+let st = {};
+let env = { tf: ['1m'], tfLabel: {} };
+let desk = null;
+let rid = 0;
 
-function log(m) {
-  const e = $('#log');
-  e.textContent = new Date().toLocaleTimeString('ko-KR') + '  ' + m + '\n' + e.textContent;
-  if (e.textContent.length > 4000) e.textContent = e.textContent.slice(0, 4000);
+/* ---- 단일 쓰기 경로: 서버 반영은 직렬 큐로만 나간다 ---- */
+const jget = (p) => fetch('/api/node?path=' + encodeURIComponent(p)).then((r) => r.json());
+
+let chain = Promise.resolve();
+function enqueue(fn) {
+  chain = chain.then(fn, fn);
+  return chain;
 }
 
-const engine = createEngine($('#chart'));
-const runtime = createRuntime(engine);
-
-const barCache = new Map(), sigCache = new Map();
-const FRESH_MS = 20000;
-let ST = null, ACT = null, PROF = null, HEALTH = null, PANES = [];
-let saveTimer = null;
-let geoLock = 0;
-
-const nodePath = (path) => `/api/node?path=${encodeURIComponent(path)}`;
-const profilePath = () => `profiles/${ACT.vd}|${ACT.code}|${ACT.tf}`;
-const getNode = (path) => api(nodePath(path));
-const patchNode = (path, body) => api(nodePath(path), J('PATCH', body));
-async function loadProfile() {
-  const path = profilePath();
-  const saved = await getNode(path);
-  const had = !!(saved && Array.isArray(saved.order) && saved.order.length);
-  const prof = reconcile(saved);
-  const items = { ...prof.items };
-  for (const k of Object.keys((saved && saved.items) || {})) {
-    if (!prof.items[k]) items[k] = '__delete__';
-  }
-  await patchNode(path, { panes: prof.panes, items,
-                          order: prof.order, view: prof.view, ui: prof.ui });
-  if (!had) log('[PROFILE-SEED] ' + path + ' items=' + prof.order.length);
-  return prof;
-}
-
-async function getBars(code, tf, force) {
-  const k = code + '|' + tf, c = barCache.get(k);
-  if (!force && c && Date.now() - c.at < FRESH_MS) return c;
-  const d = await api(`/api/bars?code=${code}&tf=${tf}${force ? '&force=1' : ''}`);
-  const rec = { bars: d.bars, live: d.live, barsHash: d.barsHash, at: Date.now() };
-  barCache.set(k, rec);
-  if (d.error) log('[BARS] ' + d.error);
-  return rec;
-}
-
-async function getSignals(code, tf, h, fast, slow) {
-  const k = `${code}|${tf}|${h}|${fast}|${slow}`;
-  if (sigCache.has(k)) return sigCache.get(k);
-  const d = await api(`/api/signals?code=${code}&tf=${tf}&fast=${fast}&slow=${slow}`);
-  sigCache.set(k, d);
-  return d;
-}
-
-/* ---- 저장 ---- */
-function savePanes() {
-  const path = profilePath();
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    api(nodePath(path), J('PATCH', { panes: PROF.panes,
-                          view: { barSpacing: engine.getBarSpacing() } })).catch(() => {});
-  }, 500);
-}
-
-/* ---- 드래그 -> 슬라이더/STATE 동기 ---- */
-function pullHeights() {
-  if (!PROF || !PANES.length || Date.now() < geoLock) return;
-  const hs = engine.getPaneHeights();
-  let ch = false;
-  PANES.forEach((p, i) => {
-    const h = hs[i];
-    if (h > 20 && Math.abs(h - p.h) > 2) {
-      p.h = h;
-      const t = PROF.panes.find((x) => x.id === p.id);
-      if (t) t.h = h;
-      ch = true;
-    }
+async function jpatch(p, b) {
+  const r = await fetch('/api/node?path=' + encodeURIComponent(p), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
   });
-  if (ch) { syncHeightInputs($('#tree'), PANES); savePanes(); }
+  const txt = await r.text();
+  if (!r.ok) throw new Error(`${r.status} ${txt.slice(0, 160).replace(/\s+/g, ' ')}`);
+  return txt;
 }
-setInterval(pullHeights, 400);
-$('#chartWrap').addEventListener('pointerup', () => setTimeout(pullHeights, 60));
-window.addEventListener('beforeunload', () => { pullHeights(); });
-engine.onRangeChange(() => savePanes());
 
-/* ---- 트리 콜백 ---- */
-const CB = {
-  toggleOpen: async (k, v) => {
-    PROF.ui.open[k] = v;
-    tree();
-    patchNode(profilePath(), { ui: { open: { [k]: v } } }).catch(() => {});
-  },
-  toggleItem: async (id, on) => {
-    PROF.items[id].enabled = on; PROF.items[id].visible = on;
-    await patchNode(profilePath(), { items: { [id]: { enabled: on, visible: on } } });
-    await draw(false);
-  },
-  patchProp: async (id, k, v) => {
-    PROF.items[id].props[k] = v;
-    await patchNode(profilePath(), { items: { [id]: { props: { [k]: v } } } });
-    await draw(false);
-  },
-  previewHeight: (paneId, h) => {
-    const i = PANES.findIndex((p) => p.id === paneId);
-    if (i >= 0) { engine.setPaneHeight(i, h); PANES[i].h = h; }
-    const t = PROF.panes.find((x) => x.id === paneId);
-    if (t) t.h = h;
-  },
-  commitHeight: (paneId, h) => { CB.previewHeight(paneId, h); savePanes(); },
-  deleteItem: async (id) => {
-    await api(nodePath(`${profilePath()}/items/${encodeURIComponent(id)}`), { method: 'DELETE' });
-    PROF = await loadProfile();
-    await draw(false);
-  },
-  deletePane: async (paneId) => {
-    const removed = {};
-    for (const id of PROF.order) {
-      if ((PROF.items[id].props.paneId || 'main') === paneId) removed[id] = '__delete__';
-    }
-    await patchNode(profilePath(), { items: removed,
-      panes: PROF.panes.filter((p) => p.id !== paneId) });
-    PROF = await loadProfile();
-    await draw(false);
-  },
-  addItem: async (kind) => {
-    const m = addons.meta(kind);
-    let n = 1;
-    while (PROF.items[kind + n]) n++;
-    const id = kind + n;
-    const props = { ...addons.defaults(kind) };
-    let pane = null;
-    if (m.pane === 'main') {
-      props.paneId = 'main';
-    } else {
-      const pid = m.pane + (PROF.panes.some((p) => p.id === m.pane) ? '_' + n : '');
-      props.paneId = pid;
-      if (!PROF.panes.some((p) => p.id === pid)) {
-        pane = { id: pid, label: m.label, h: paneDefaultH(m.pane) };
-      }
-    }
+function jdel(p) {
+  return enqueue(async () => {
     try {
-      const update = { items: { [id]: { kind, enabled: true, visible: true, props } },
-               order: [...PROF.order, id] };
-      if (pane) update.panes = [...PROF.panes, pane];
-      PROF = reconcile(await patchNode(profilePath(), update));
-      log(`[ADD] ${id} -> ${props.paneId}`);
-      await draw(false);
-    } catch (e) { log('[ADD-FAIL] ' + e.message); }
-  },
-};
-
-function tree() {
-  PANES = activePanes(PROF, ST.globalOn);
-  renderTree($('#tree'), PROF, PANES, CB);
-  renderAddBar($('#addWrap'), PANES, CB);
+      const r = await fetch('/api/node?path=' + encodeURIComponent(p), { method: 'DELETE' });
+      if (!r.ok) bus.push(`[DEL-FAIL] ${p} ${r.status}`);
+    } catch (e) { bus.push('[DEL-ERR] ' + p + ' ' + e); }
+  });
 }
 
-/* ---- 상단 ---- */
+function nodeAt(root, path, create) {
+  let cur = root;
+  for (const k of String(path || '').split('/').filter(Boolean)) {
+    if (!cur[k] || typeof cur[k] !== 'object' || Array.isArray(cur[k])) {
+      if (!create) return null;
+      cur[k] = {};
+    }
+    cur = cur[k];
+  }
+  return cur;
+}
+
+function mergeLocal(dst, src) {
+  for (const [k, v] of Object.entries(src)) {
+    if (v === ds.DEL) delete dst[k];
+    else if (v && typeof v === 'object' && !Array.isArray(v)
+             && dst[k] && typeof dst[k] === 'object' && !Array.isArray(dst[k])) mergeLocal(dst[k], v);
+    else dst[k] = v;
+  }
+  return dst;
+}
+
+function patch(path, body) {
+  const n = nodeAt(st, path, true);
+  if (n) mergeLocal(n, body);
+  render();
+  return enqueue(async () => {
+    try { await jpatch(path, body); }
+    catch (e) { bus.push(`[PATCH-FAIL] ${path || '/'} ${e.message}`); }
+  });
+}
+
+const bounds = () => { const d = $('#desk'); return { w: d.clientWidth, h: d.clientHeight }; };
+
+/* ---- 상단바 ---- */
 function renderTop() {
-  const v = $('#vds'); v.innerHTML = '';
-  for (const [id, d] of Object.entries(ST.vds)) {
+  const key = JSON.stringify([ds.vdOrder(st).map((k) => [k, st.vds[k].label]), st.activeVd, st.symLink, st.globalOn]);
+  if (key === renderTop.key) return;
+  renderTop.key = key;
+
+  const box = $('#vds');
+  box.innerHTML = '';
+  ds.vdOrder(st).forEach((id, i) => {
     const b = document.createElement('button');
-    b.textContent = `${d.label} ${d.name}`;
-    if (id === ACT.vd) b.className = 'on';
-    b.onclick = () => switchTo(id, d.code, d.tf || ACT.tf);
-    v.append(b);
-  }
-  const t = $('#tfs'); t.innerHTML = '';
-  for (const tf of HEALTH.tf) {
-    const b = document.createElement('button');
-    b.textContent = HEALTH.tfLabel[tf];
-    if (tf === ACT.tf) b.className = 'on';
-    b.onclick = () => switchTo(ACT.vd, ACT.code, tf);
-    t.append(b);
-  }
-  $('#mode').textContent = `${HEALTH.mode}${HEALTH.paper ? '/모의' : '/실거래'}`;
+    b.className = 'vdb' + (id === st.activeVd ? ' on' : '');
+    b.textContent = st.vds[id].label;
+    b.title = id + (i < ds.VD_HOTKEYS ? ` (Ctrl+${i + 1})` : '');
+    b.onclick = () => patch('', { activeVd: id });
+    b.oncontextmenu = (e) => { e.preventDefault(); vdMenu(id, e.clientX, e.clientY); };
+    box.append(b);
+  });
+  const add = document.createElement('button');
+  add.className = 'vdb add';
+  add.textContent = '+';
+  add.title = '가상화면 추가';
+  add.onclick = addVd;
+  box.append(add);
+
+  const sl = $('#symlink');
+  sl.textContent = st.symLink === 'all' ? '연동:전체' : '연동:VD';
+  sl.onclick = () => patch('', { symLink: st.symLink === 'all' ? 'vd' : 'all' });
+
+  const go = $('#globalOn');
+  go.textContent = st.globalOn ? '애드온:ON' : '애드온:OFF';
+  go.className = 'tagb' + (st.globalOn ? ' on' : '');
+  go.onclick = () => patch('', { globalOn: !st.globalOn });
 }
 
-/* ---- 그리기 ---- */
-async function draw(force, geo) {
-  const rec = await getBars(ACT.code, ACT.tf, force);
-  const sgId = PROF.order.find((id) => PROF.items[id].kind === 'signals');
-  const sg = sgId ? PROF.items[sgId] : null;
-  let markers = [], ev = null;
-  const on = sg && sg.enabled && sg.visible;
-  const d = await getSignals(ACT.code, ACT.tf, rec.barsHash,
-                             on ? sg.props.fast : 5, on ? sg.props.slow : 20);
-  ev = d.eval;
-  if (on) markers = d.markers;
-  const ctx = { engine, bars: rec.bars, liveBar: rec.live, barsHash: rec.barsHash, markers };
-  const r = runtime.apply(PROF, ST.globalOn, ctx, !!geo);
-  if (geo) geoLock = Date.now() + 1200;
-  runtime.tickLive(ctx);
-  PANES = r.panes;
-  tree();
-  $('#eval').textContent = ev ? `${ev.signal}\n${ev.reason}` : '-';
-  log(`[APPLY] ${ACT.vd}/${ACT.code}/${ACT.tf} bars=${rec.bars.length} panes=${r.panes.length} ops=${r.ops.length}`);
-}
-
-async function switchTo(vd, code, tf) {
-  try {
-    pullHeights();
-    clearTimeout(saveTimer);
-    await patchNode(profilePath(), { panes: PROF.panes,
-                    view: { barSpacing: engine.getBarSpacing() } });
-    ACT = await patchNode(`active`, { vd, code, tf });
-    await patchNode(`vds/${vd}`, { code, tf });
-    ST = await getNode('');
-    PROF = reconcile(await getNode(profilePath()));
-    renderTop();
-    await draw(false, true);
-    await refreshQuote();
-  } catch (e) {
-    log('[SWITCH-FAIL] ' + vd + '/' + code + '/' + tf + ' :: ' + e.message);
-  }
-}
-
-async function refreshQuote() {
-  try {
-    const d = await api('/api/quote?code=' + ACT.code);
-    const s = d.change > 0 ? '+' : '';
-    $('#quote').textContent = `${d.code}  ${d.price.toLocaleString()}  ${s}${d.change} (${s}${d.rate}%)`;
-  } catch (e) { $('#quote').textContent = '시세 실패'; }
-}
-
-async function refreshBalance() {
-  try {
-    const b = await api('/api/balance');
-    $('#bal').textContent = `현금 ${Math.round(b.cash).toLocaleString()}\n평가 ${Math.round(b.eval).toLocaleString()}\n손익 ${Math.round(b.pnl).toLocaleString()}\n보유 ${b.positions.length}건`;
-  } catch (e) { $('#bal').textContent = '조회 실패'; }
-}
-
-async function order(side) {
-  const qty = Math.max(1, +$('#qty').value | 0);
-  let price = 0;
-  if (!$('#mkt').checked) {
-    const c = barCache.get(ACT.code + '|' + ACT.tf);
-    price = c && c.bars.length ? c.bars[c.bars.length - 1].close : 0;
-  }
-  try {
-    const r = await api('/api/order', J('POST', { code: ACT.code, side, qty, price, tf: ACT.tf }));
-    log(`[ORDER] ${side} ${ACT.code} x${qty} -> ${r.orderNo} (${r.mode})`);
-  } catch (e) { log('[ORDER-FAIL] ' + e.message); }
-  refreshBalance();
-}
-
-(async function boot() {
-  const NEED = ['vds','tfs','mode','quote','chart','tree','addWrap','eval','qty','mkt','buy','sell','bal','log'];
-  const miss = NEED.filter((id) => !document.getElementById(id));
-  if (miss.length) throw new Error('HTML-MISMATCH 누락 id: ' + miss.join(', '));
-  $('#buy').onclick = () => order('BUY');
-  $('#sell').onclick = () => order('SELL');
-
-  HEALTH = await api('/api/health');
-  ST = await getNode('');
-  if (!ST.vds) ST = await patchNode('', defaultProject());
-  ACT = ST.active;
-  PROF = await loadProfile();
+function render() {
   renderTop();
-  await draw(true, true);
-  await refreshQuote(); await refreshBalance();
-  setInterval(() => draw(true).catch((e) => log('[DRAW] ' + e.message)), 15000);
-  setInterval(refreshQuote, 5000);
-  setInterval(refreshBalance, 30000);
-  log('[BOOT] 완료');
-})().catch((e) => log('[BOOT-FAIL] ' + e.message));
+  if (!desk) return;
+  const r = desk.apply();
+  if (r.ops.length) bus.push(`[DESK] ${st.activeVd} forms=${(st.vds[st.activeVd] || { z: [] }).z.length} ops=${r.ops.length} ${r.ops.join(',')}`);
+}
+
+/* ---- 폼 조작 ---- */
+function addForm(kind, seed) {
+  const meta = screens.spec.meta(kind);
+  if (meta.single) {
+    const dup = Object.entries(st.forms).find(([, f]) => f.screen === kind && (f.vd === st.activeVd || f.allVd));
+    if (dup) { bus.push('[FORM=] 이미 존재 ' + kind); desk.raise(dup[0]); return; }
+  }
+  const id = ds.nextFormId(st);
+  const form = ds.defaultForm(st, kind, { ...(seed || {}), vd: st.activeVd }, screens.spec, bounds());
+  const z = [...((st.vds[st.activeVd] || {}).z || []), id];
+  patch('', { forms: { [id]: form }, vds: { [st.activeVd]: { z } }, seq: { form: +id.slice(1) } });
+  bus.push(`[FORM+] ${id} ${kind} vd=${st.activeVd}`);
+}
+
+function closeForm(id) {
+  const vds = {};
+  for (const [vid, v] of Object.entries(st.vds)) {
+    if ((v.z || []).includes(id)) vds[vid] = { z: v.z.filter((x) => x !== id) };
+  }
+  patch('', { forms: { [id]: ds.DEL }, vds });
+  bus.push('[FORM-] ' + id);
+}
+
+/* ---- VD 조작 ---- */
+function addVd() {
+  if (ds.VD_MAX && Object.keys(st.vds).length >= ds.VD_MAX) return;
+  const id = ds.nextVdId(st);
+  const order = Object.keys(st.vds).length;
+  patch('', { vds: { [id]: ds.defaultVd(String(order + 1), order) }, activeVd: id });
+  bus.push('[VD+] ' + id);
+}
+
+async function delVd(id) {
+  if (Object.keys(st.vds).length <= 1) { bus.push('[VD-] 마지막 VD는 삭제 불가'); return; }
+  const own = Object.keys(st.forms).filter((fid) => st.forms[fid].vd === id);
+  if (!confirm(`${st.vds[id].label} 삭제. 소속 자식폼 ${own.length}개도 함께 삭제합니다.`)) return;
+  const p = { forms: {}, vds: { [id]: ds.DEL } };
+  for (const fid of own) p.forms[fid] = ds.DEL;
+  for (const [vid, v] of Object.entries(st.vds)) {
+    if (vid === id) continue;
+    p.vds[vid] = { z: (v.z || []).filter((x) => !own.includes(x)) };
+  }
+  if (st.activeVd === id) p.activeVd = ds.vdOrder(st).find((x) => x !== id);
+  delete st.vds[id];
+  await patch('', p);
+  await jdel('vds/' + id);
+  bus.push('[VD-] ' + id);
+}
+
+function vdMenu(id, x, y) {
+  menuAt(x, y, [
+    ['이름 변경', () => {
+      const v = prompt('가상화면 이름', st.vds[id].label);
+      if (v) patch('vds/' + id, { label: v.slice(0, 8) });
+    }],
+    ['삭제', () => delVd(id)],
+  ]);
+}
+
+/* ---- 자식폼 우클릭 메뉴 ---- */
+function openMenu(id, x, y) {
+  const f = st.forms[id];
+  if (!f) return;
+  const items = [
+    [f.allVd ? '모든 가상화면에 보이기 해제' : '모든 가상화면에 보이기 (V)',
+      () => patch('forms/' + id, { allVd: !f.allVd })],
+  ];
+  for (const vid of ds.vdOrder(st)) {
+    if (vid === f.vd) continue;
+    items.push(['이동 -> ' + st.vds[vid].label, () => moveForm(id, vid)]);
+  }
+  items.push(['닫기', () => closeForm(id)]);
+  menuAt(x, y, items);
+}
+
+function moveForm(id, vid) {
+  const vds = {};
+  for (const [k, v] of Object.entries(st.vds)) {
+    if (k === vid) vds[k] = { z: [...(v.z || []).filter((x) => x !== id), id] };
+    else vds[k] = { z: (v.z || []).filter((x) => x !== id) };
+  }
+  patch('', { forms: { [id]: { vd: vid } }, vds });
+}
+
+function menuAt(x, y, items) {
+  const old = $('#ctx');
+  if (old) old.remove();
+  const m = document.createElement('div');
+  m.id = 'ctx';
+  m.className = 'ctx';
+  for (const [label, fn] of items) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.onclick = () => { m.remove(); fn(); };
+    m.append(b);
+  }
+  document.body.append(m);
+  m.style.left = Math.min(x, window.innerWidth - 220) + 'px';
+  m.style.top = Math.min(y, window.innerHeight - m.offsetHeight - 8) + 'px';
+  setTimeout(() => document.addEventListener('pointerdown', function once() {
+    m.remove();
+    document.removeEventListener('pointerdown', once);
+  }), 0);
+}
+
+/* ---- 화면검색 / 퀵툴바 / 단축키 ---- */
+function initSearch() {
+  const inp = $('#search');
+  const res = $('#sres');
+  const hide = () => { res.style.display = 'none'; };
+  const draw = () => {
+    const list = screens.search(inp.value);
+    res.innerHTML = '';
+    for (const c of list) {
+      const b = document.createElement('div');
+      b.className = 'sitem';
+      b.textContent = `[${c.no}] ${c.label}`;
+      b.onclick = () => { addForm(c.kind); inp.value = ''; hide(); };
+      res.append(b);
+    }
+    res.style.display = list.length ? 'block' : 'none';
+  };
+  inp.oninput = draw;
+  inp.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      const l = screens.search(inp.value);
+      if (l[0]) { addForm(l[0].kind); inp.value = ''; hide(); }
+    } else if (e.key === 'Escape') { inp.value = ''; hide(); }
+  };
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target !== inp && !res.contains(e.target)) hide();
+  });
+}
+
+function renderQuick() {
+  const q = $('#quick');
+  q.innerHTML = '';
+  for (const c of screens.catalog()) {
+    if (!c.quick) continue;
+    const b = document.createElement('button');
+    b.className = 'qb';
+    b.textContent = c.label;
+    b.title = `[${c.no}] ${c.label}`;
+    b.onclick = () => addForm(c.kind);
+    q.append(b);
+  }
+}
+
+function initKeys() {
+  window.addEventListener('keydown', (e) => {
+    if (!e.ctrlKey || e.altKey || e.shiftKey) return;
+    const n = +e.key;
+    if (!(n >= 1 && n <= ds.VD_HOTKEYS)) return;
+    const id = ds.vdOrder(st)[n - 1];
+    if (!id) return;
+    e.preventDefault();
+    patch('', { activeVd: id });
+  });
+}
+
+/* ---- 부팅 ---- */
+async function boot() {
+  try { env = await fetch('/api/health').then((r) => r.json()); } catch (e) { bus.push('[HEALTH] ' + e); }
+  $('#mode').textContent = `${env.mode || '?'} ${env.paper ? '모의' : '실전'}`;
+  bus.sub((line) => { $('#status').textContent = line; });
+
+  let raw = await jget('');
+  if ((raw.schemaVersion | 0) < ds.PROJECT_SCHEMA) {
+    const m = ds.migrate(raw, screens.spec, bounds());
+    if (m.patch) {
+      await jpatch('', m.patch);
+      bus.push(`[MIGRATE] v${raw.schemaVersion || 0}->${ds.PROJECT_SCHEMA} forms=${m.forms} dropped=${m.dropped}`);
+    }
+    raw = m.st;
+  }
+  const rc = ds.reconcile(raw, screens.spec, bounds());
+  st = rc.st;
+  if (rc.changed) {
+    await jpatch('', rc.patch);
+    bus.push('[RECONCILE] ' + (rc.dropped.length ? 'dropped=' + rc.dropped.join(',') : 'fixed'));
+  }
+
+  desk = createDesk($('#desk'), $('#tabs'), screens.spec, {
+    env, getState: () => st, patch, close: closeForm, menu: openMenu, log: bus.push,
+  });
+
+  renderQuick();
+  initSearch();
+  initKeys();
+  render();
+
+  window.addEventListener('resize', () => { clearTimeout(rid); rid = setTimeout(render, 150); });
+  if (!Object.keys(st.forms).length) addForm(screens.spec.legacyKind());
+}
+
+boot().catch((e) => bus.push('[BOOT-FAIL] ' + e));

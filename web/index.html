@@ -5,34 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>kiwoom-auto</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="/web/style.css?v=3">
+<link rel="stylesheet" href="/web/style.css?v=5">
 <script src="/web/vendor/lwc.standalone.js"></script>
 </head>
 <body>
 <header>
-  <strong>kiwoom-auto</strong>
+  <strong class="logo">kiwoom-auto</strong>
   <span id="vds" class="grp"></span>
-  <span id="tfs" class="grp"></span>
+  <span class="sbox">
+    <input id="search" placeholder="화면검색 (번호/이름)" autocomplete="off">
+    <div id="sres" class="sres"></div>
+  </span>
+  <span id="quick" class="grp"></span>
+  <button id="symlink" class="tagb" title="종목연동 모드">연동:VD</button>
+  <button id="globalOn" class="tagb" title="애드온 전역 스위치">애드온:ON</button>
   <span id="mode" class="tag">-</span>
-  <span id="quote" class="tag">-</span>
 </header>
-<main>
-  <section id="chartWrap"><div id="chart" style="min-height:400px"></div></section>
-  <aside>
-    <div class="box">
-      <h3>애드온 트리 <span id="addWrap"></span></h3>
-      <div id="tree"></div>
-    </div>
-    <div class="box"><h3>전략</h3><div id="eval" class="mono">-</div></div>
-    <div class="box"><h3>주문</h3>
-      <div class="row"><input id="qty" type="number" value="1" min="1"></div>
-      <label><input id="mkt" type="checkbox" checked> 시장가</label>
-      <div class="row"><button id="buy" class="buy">매수</button><button id="sell" class="sell">매도</button></div>
-    </div>
-    <div class="box"><h3>잔고</h3><div id="bal" class="mono">-</div></div>
-  </aside>
-</main>
-<footer><div id="log" class="mono"></div></footer>
-<script type="module" src="/web/js/app.js?v=3"></script>
+<main id="desk"></main>
+<footer>
+  <div id="tabs" class="tabs"></div>
+  <div id="status" class="mono"></div>
+</footer>
+<script type="module" src="/web/js/app.js?v=5"></script>
 </body>
 </html>

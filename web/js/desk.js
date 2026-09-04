@@ -131,26 +131,20 @@ export function createDesk(canvas, tabbar, cat, io) {
       let fresh = false;
       if (!cur) { cur = ensure(id, f, b); live.set(id, cur); ops.push('+' + id); fresh = true; }
       const dh = hash({ c: f.code, t: f.tf, y: f.body, n: f.title, a: f.allVd, g: st.globalOn });
-      const gh = hash({ r: rectOf(f, b), s: f.winState, z: i });
+      const gh = hash({ r: rectOf(f, b), s: f.winState });   // z 제외
       if (cur.dataHash !== dh) {
         cur.frame.setTitle(cat.title(f), cat.sub(f));
         cat.update(f.screen, cur.handle, f, ctxFor(id));
         cur.dataHash = dh;
         if (!fresh) ops.push('~' + id);
       }
+      if (cur.zIdx !== i) { cur.frame.setZ(i); cur.zIdx = i; if (!fresh) ops.push('z' + id); }
       if (cur.geoHash !== gh) {
-        const rs = JSON.stringify(rectOf(f, b));
-        const why = [];
-        if (cur.gr !== rs) why.push('r');
-        if (cur.gs !== f.winState) why.push('s');
-        if (cur.gi !== i) why.push('z');
-        cur.gr = rs; cur.gs = f.winState; cur.gi = i;
         cur.frame.setRect(rectOf(f, b));
         cur.frame.setState(f.winState);
-        cur.frame.setZ(i);
         cat.resize(f.screen, cur.handle);
         cur.geoHash = gh;
-        if (!fresh) ops.push('g' + id + '[' + why.join('') + ']');
+        if (!fresh) ops.push('g' + id);
       }
       cur.frame.setActive(i === ids.length - 1 && f.winState !== 'min');
     });

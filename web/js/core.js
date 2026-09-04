@@ -23,6 +23,7 @@ export function createEngine(el) {
     },
     grid: { vertLines: { color: '#1e222b' }, horzLines: { color: '#1e222b' } },
     rightPriceScale: { borderColor: '#2c3140' },
+    leftPriceScale: { borderColor: '#2c3140', visible: true },
     timeScale: { borderColor: '#2c3140', timeVisible: true, secondsVisible: false },
     crosshair: { mode: LC.CrosshairMode.Normal },
     autoSize: true,

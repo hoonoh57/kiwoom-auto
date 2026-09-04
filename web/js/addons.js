@@ -181,11 +181,18 @@ registry.set('candles', {
     const tf = tfOf(it.props.tf, x.form.tf);
     const placement = it.props.placement === 'pane' ? 'pane' : 'overlay';
     const compareMode = ['percent', 'indexed100'].includes(it.props.compareMode) ? it.props.compareMode : 'price';
-    const paneId = String(it.props.paneId || (placement === 'pane' ? `compare:${x.id}` : 'main'));
+    const storedPaneId = String(it.props.paneId || '');
+    const paneId = placement === 'pane' && (!storedPaneId || storedPaneId === 'main')
+      ? `compare:${x.id}` : (storedPaneId || 'main');
     let scaleId = String(it.props.scaleId || 'auto');
-    if (scaleId === 'auto') scaleId = placement === 'pane' ? 'right'
-      : (compareMode === 'price' ? `y:${x.id}` : 'compare');
-    return { code, tf, dataKey: `${code}|${tf}`, placement, paneId, scaleId, compareMode,
+    if (scaleId === 'auto') {
+      // LWC는 left/right 두 축만 가시화한다. 그 외 id는 눈금 없는 오버레이 축이 된다.
+      if (placement === 'pane') scaleId = 'right';
+      else if (compareMode !== 'price') scaleId = 'compare';
+      else scaleId = x.axisSlot === 0 ? 'right' : (x.axisSlot === 1 ? 'left' : 'compare');
+    }
+    const visibleScale = scaleId === 'left' || scaleId === 'right';
+    return { code, tf, dataKey: `${code}|${tf}`, placement, paneId, scaleId, visibleScale, compareMode,
       baseTime: Number(it.props.baseTime) || null, baseValue: Number(it.props.baseValue) || null,
       upColor: P(it.props, 'upColor', '#26a69a'), downColor: P(it.props, 'downColor', '#ef5350') };
   },
@@ -197,9 +204,7 @@ registry.set('candles', {
       priceFormat: p.compareMode === 'price' ? { type: 'price' }
         : { type: 'price', precision: 2, minMove: 0.01 },
     }, pane);
-    if (p.scaleId === 'left' || p.scaleId === 'right') {
-      ctx.engine.setSeriesScaleOptions(s, { visible: true, autoScale: true });
-    }
+    if (p.visibleScale) ctx.engine.setSeriesScaleOptions(s, { visible: true, autoScale: true });
     const d = candleData(dataOf(ctx, p), p);
     s.setData(d.bars);
     const h = { series: [s], basePending: false };
@@ -211,9 +216,7 @@ registry.set('candles', {
       wickUpColor: p.upColor, wickDownColor: p.downColor,
       priceFormat: p.compareMode === 'price' ? { type: 'price' }
         : { type: 'price', precision: 2, minMove: 0.01 } });
-    if (p.scaleId === 'left' || p.scaleId === 'right') {
-      ctx.engine.setSeriesScaleOptions(h.series[0], { visible: true, autoScale: true });
-    }
+    if (p.visibleScale) ctx.engine.setSeriesScaleOptions(h.series[0], { visible: true, autoScale: true });
     const d = candleData(dataOf(ctx, p), p);
     h.series[0].setData(d.bars);
     scheduleBase(ctx, h, d, p);

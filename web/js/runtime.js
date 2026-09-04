@@ -25,7 +25,7 @@ export function activePanes(profile, globalOn, ctx) {
     if (!it || !globalOn || !it.enabled || !it.visible) continue;
     const impl = addons.get(it.kind);
     if (!impl) continue;
-    const props = impl.normalize(it, { id, form: ctx && ctx.form });
+    const props = impl.normalize(it, { id, form: ctx && ctx.form, axisSlot: 0 });
     used.add(props.paneId || it.props.paneId || 'main');
   }
   used.add('main');
@@ -39,13 +39,17 @@ export function createRuntime(engine) {
   function desired(profile, globalOn, ctx) {
     const panes = activePanes(profile, globalOn, ctx);
     const idx = new Map(panes.map((p, i) => [p.id, i]));
+    const slots = new Map();
     const out = [];
     for (const id of profile.order) {
       const it = profile.items[id];
       if (!it || !(globalOn && it.enabled && it.visible)) continue;
       const impl = addons.get(it.kind);
       if (!impl) continue;
-      const props = impl.normalize(it, { id, form: ctx.form });
+      const slotKey = it.kind + '|' + (it.props.paneId || 'main');
+      const slot = slots.get(slotKey) || 0;
+      slots.set(slotKey, slot + 1);
+      const props = impl.normalize(it, { id, form: ctx.form, axisSlot: slot });
       const pane = idx.get(props.paneId || it.props.paneId || 'main') ?? 0;
       const version = impl.version ? impl.version(ctx, props) : (ctx.barsHash || '0');
       out.push({ id, kind: it.kind, props, pane, version,

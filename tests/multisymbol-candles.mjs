@@ -65,8 +65,8 @@ assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [['update', 'candles2']]);
 assert.equal(made[1].data[1].close, 110.00000000000001);
 
 profile.items.candles2.props.placement = 'pane';
-profile.items.candles2.props.paneId = 'compare:candles2';
-profile.items.candles2.props.scaleId = 'right';
+profile.items.candles2.props.paneId = 'main';
+profile.items.candles2.props.scaleId = 'auto';
 result = runtime.apply(profile, true, ctx, false);
 assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [['remove', 'candles2'], ['ensure', 'candles2']]);
 assert.equal(made.at(-1).pane, 1);
@@ -82,5 +82,35 @@ result = runtime.apply(profile, true, ctx, false);
 assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [['update', 'candles2']]);
 await Promise.resolve();
 assert.deepEqual(patches, [['candles2', { baseValue: 50, baseTime: 1 }]]);
+
+const autoProfile = {
+  panes: [{ id: 'main', label: 'main', h: 300 }],
+  items: {
+    candles1: { kind: 'candles', enabled: true, visible: true, props: {
+      code: '005930', tf: '1m', placement: 'overlay', paneId: 'main', scaleId: 'auto',
+      compareMode: 'price', baseTime: null, baseValue: null,
+    } },
+    candles2: { kind: 'candles', enabled: true, visible: true, props: {
+      code: '000660', tf: '1m', placement: 'overlay', paneId: 'main', scaleId: 'auto',
+      compareMode: 'price', baseTime: null, baseValue: null,
+    } },
+    candles3: { kind: 'candles', enabled: true, visible: true, props: {
+      code: '035720', tf: '1m', placement: 'overlay', paneId: 'main', scaleId: 'auto',
+      compareMode: 'price', baseTime: null, baseValue: null,
+    } },
+  },
+  order: ['candles1', 'candles2', 'candles3'], view: {},
+};
+const madeBeforeAuto = made.length;
+const autoRuntime = createRuntime(engine);
+result = autoRuntime.apply(autoProfile, true, ctx, false);
+assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [
+  ['ensure', 'candles1'], ['ensure', 'candles2'], ['ensure', 'candles3'],
+]);
+const autoSeries = made.slice(madeBeforeAuto);
+assert.deepEqual(autoSeries.map((s) => s.options.priceScaleId), ['right', 'left', 'compare']);
+assert.deepEqual(autoSeries[0].scaleOptions, { visible: true, autoScale: true });
+assert.deepEqual(autoSeries[1].scaleOptions, { visible: true, autoScale: true });
+assert.equal(autoSeries[2].scaleOptions, undefined);
 
 console.log('[PASS] multi-symbol candles overlay/pane/locality/idempotence');

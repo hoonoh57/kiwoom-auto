@@ -84,7 +84,7 @@ chart 폼의 각 `candles` item은 자식폼의 공통 종목을 복사하지 �
 | `tf` | 허용 주기/null | null | null이면 form.tf를 상속 |
 | `placement` | `overlay|pane` | overlay | 메인 pane 중첩 또는 독립 서브차트 |
 | `paneId` | 문자열 | main | overlay 대상 또는 독립 pane 식별자 |
-| `scaleId` | 문자열 | auto | right, left, compare 또는 item 전용 `y:<itemId>` |
+| `scaleId` | `auto|right|left|compare` | auto | 자동 축 배정 또는 명시 축 선택 |
 | `compareMode` | `price|percent|indexed100` | price | 원가격, 기준 대비 %, 기준값 100 |
 | `baseTime` | Unix 초/null | null | percent/indexed100의 기준 시각 |
 | `baseValue` | 양수/null | null | 기준 시각에서 확정된 종가 |
@@ -93,9 +93,10 @@ chart 폼의 각 `candles` item은 자식폼의 공통 종목을 복사하지 �
 
 ### D3.chart.placement
 
-- `overlay + price`: `scaleId=auto`이면 `y:<itemId>`를 사용하여 다른 종목 가격 범위와 분리한다.
+- `overlay + price`: `scaleId=auto`이면 같은 kind·pane의 표시 순서에 따라 첫 캔들은 `right`, 두 번째는 `left`, 세 번째부터는 눈금 없는 `compare` 공유 축을 사용한다. Lightweight Charts가 가시 가격축을 left/right 두 개만 제공하기 때문이다.
 - `overlay + percent|indexed100`: `scaleId=auto`이면 모든 비교 series가 `compare` scale을 공유한다.
 - `pane`: item 전용 pane을 만들고 그 pane의 `right` scale을 사용한다.
+- 세 종목 이상을 읽을 수 있는 공통 눈금으로 비교하려면 `percent|indexed100`을 선택하고, 원가격 눈금이 필요하면 `pane`을 선택한다.
 - 한 chart 폼 안의 모든 series는 하나의 time scale을 공유한다. 서로 다른 tf는 허용하지만 빈 시각은 각 series의 whitespace로 남긴다.
 
 ### D3.vd.fields
@@ -186,6 +187,8 @@ destroyFrame(handle) -> void
 
 호출은 O(1), 폼당 frame 하나와 content host 하나를 할당한다. rect는 정수이며 w/h는 minSize 이상이다. 파괴된 handle 호출은 `InvalidFrameHandle` 오류다. `web/js/core.js`는 chart/series/pane/priceLine/markers primitive만 제공하며 feature 분기를 갖지 않는다.
 
+차트 primitive는 `rightPriceScale`과 `leftPriceScale`을 모두 표시 가능 상태로 만들지만 어느 series가 어느 축을 쓰는지는 결정하지 않는다.
+
 ## D7 — Bridge diff 알고리즘
 
 ### D7.desk.diff
@@ -207,6 +210,8 @@ live authority는 `Map<formId,{kind,propsHash,frame,addonHandle}>` 하나다. VD
 ### D7.chart.data-diff
 
 series Bridge의 desired item에는 `{id,kind,enabled,visible,props,order}`만 들어간다. `code/tf` 변경은 해당 item의 propsHash만 바꾸며 그 item에만 update를 발생시킨다. placement 또는 paneId 변경은 해당 item의 기존 primitive를 remove한 뒤 동일 ID를 새 pane에 ensure한다. scaleId 또는 compareMode 변경은 해당 item update만 발생시킨다.
+
+Bridge는 활성 item을 order 순서로 순회하며 `kind|rawPaneId`별 0 기반 `axisSlot`만 계산해 Add-on `normalize`에 전달한다. 축 이름과 비교 방식의 의미는 해석하지 않는다. chart Screen Add-on의 pane 목록 계산과 pane 삭제 판정은 series Add-on `normalize` 결과를 사용한다.
 
 같은 `{code,tf}`를 사용하는 여러 item의 네트워크 응답 캐시는 generic marketData adapter가 공유할 수 있지만 캐시는 desired authority가 아니며 item lifecycle을 소유하지 않는다.
 
@@ -266,7 +271,7 @@ T11 f500 변경            touch count 1
 
 ```text
 C0 캔들 추가 설정 취소    operation 0, STATE write 0
-C1 candles1(005930,overlay,price,y:candles1) 추가
+C1 candles1(005930,overlay,price,right) 추가
    [{op:ensure,id:candles1,kind:candles,propsHash:H(c1)}]
 C2 candles2(000660,overlay,indexed100,compare) 추가
    [{op:ensure,id:candles2,kind:candles,propsHash:H(c2)}]

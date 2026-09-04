@@ -30,7 +30,7 @@ export function renderTree(root, profile, panes, cb) {
       const ch = el('div', 'children');
 
       const hr = el('div', 'prow');
-      const rg = el('input'); rg.type = 'range'; rg.min = 50; rg.max = 600;
+      const rg = el('input'); rg.type = 'range'; rg.min = 30; rg.max = 600;
       rg.step = 5; rg.value = pane.h;
       const hv = el('span', 'hval', pane.h + 'px');
       rg.oninput = () => { hv.textContent = rg.value + 'px'; cb.previewHeight(pane.id, +rg.value); };
@@ -158,13 +158,29 @@ export function renderAddBar(root, panes, cb) {
     const add = el('button', 'on', '추가');
     add.type = 'button';
     add.onclick = () => {
-      let props = { ...draft.props };
+      const values = {};
       for (const [f, input] of controls) {
+        input.setCustomValidity('');
         if (!input.checkValidity()) { input.reportValidity(); return; }
         const value = ['text', 'select', 'color'].includes(f.t) ? input.value : Math.round(+input.value);
-        const patch = f.patch ? f.patch(value, { id: draft.id, props }) : { [f.k]: value };
-        props = { ...props, ...patch };
+        values[f.k] = value;
       }
+      const base = { ...draft.props, ...values };
+      const derived = {};
+      for (const [f, input] of controls) {
+        const patch = f.patch
+          ? f.patch(values[f.k], { id: draft.id, props: base, values })
+          : { [f.k]: values[f.k] };
+        for (const [k, value] of Object.entries(patch)) {
+          if (Object.hasOwn(derived, k) && !Object.is(derived[k], value)) {
+            input.setCustomValidity(`설정 규칙이 ${k} 값을 충돌시킵니다.`);
+            input.reportValidity();
+            return;
+          }
+          derived[k] = value;
+        }
+      }
+      const props = { ...base, ...derived };
       cb.addItem(kind, { id: draft.id, props });
       box.remove();
     };

@@ -73,18 +73,26 @@ function seed(form) {
   return { items, order };
 }
 
-function usedPanes(body) {
+function normalizedPane(body, id, form) {
+  const it = body.items[id];
+  const impl = it && addons.get(it.kind);
+  if (!impl) return 'main';
+  const props = impl.normalize(it, { id, form, axisSlot: 0 });
+  return props.paneId || it.props.paneId || 'main';
+}
+
+function usedPanes(body, form) {
   const out = ['main'];
   for (const id of body.order) {
-    const p = (body.items[id].props.paneId || 'main');
+    const p = normalizedPane(body, id, form);
     if (!out.includes(p)) out.push(p);
   }
   return out;
 }
 
-function normPanes(prev, body) {
+function normPanes(prev, body, form) {
   const keep = new Map(arr(prev).filter((p) => p && p.id).map((p) => [p.id, p]));
-  return usedPanes(body).map((id) => {
+  return usedPanes(body, form).map((id) => {
     const p = obj(keep.get(id));
     const def = id === 'main' ? 300 : 120;
     return { id, label: typeof p.label === 'string' && p.label ? p.label : id,
@@ -112,7 +120,7 @@ export const SCREEN = {
   defaultBody(form) {
     const s = seed(form);
     const body = { items: s.items, order: s.order, panes: [], view: {}, ui: { open: { main: true }, panel: true } };
-    body.panes = normPanes([], body);
+    body.panes = normPanes([], body, form);
     body.view = { barSpacing: TF_BS[form.tf] || 8, autoScale: true };
     return body;
   },
@@ -132,7 +140,7 @@ export const SCREEN = {
       if (!it.props.paneId) it.props.paneId = paneOf(it.kind);
       b.items[id] = it;
     }
-    b.panes = normPanes(b.panes, b);
+    b.panes = normPanes(b.panes, b, form);
     b.view = obj(b.view);
     b.view.barSpacing = clamp(typeof b.view.barSpacing === 'number' && b.view.barSpacing > 0
       ? b.view.barSpacing : (TF_BS[form.tf] || 8), 0.5, 60);
@@ -209,7 +217,8 @@ export const SCREEN = {
       },
       deletePane: (pid) => {
         const b = ctx.form().body;
-        const gone = b.order.filter((id) => (b.items[id].props.paneId || 'main') === pid);
+        const formNow = ctx.form();
+        const gone = b.order.filter((id) => normalizedPane(b, id, formNow) === pid);
         const items = {};
         for (const id of gone) items[id] = DEL;
         ctx.patchBody({ items, order: b.order.filter((id) => !gone.includes(id)),

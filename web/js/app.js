@@ -15,9 +15,15 @@ let rid = 0;
 const jget = (p) => fetch('/api/node?path=' + encodeURIComponent(p)).then((r) => r.json());
 
 let chain = Promise.resolve();
+let rafId = 0;
 function enqueue(fn) {
   chain = chain.then(fn, fn);
   return chain;
+}
+
+function scheduleRender() {
+  if (rafId) return;
+  rafId = requestAnimationFrame(() => { rafId = 0; render(); });
 }
 
 async function jpatch(p, b) {
@@ -63,7 +69,7 @@ function mergeLocal(dst, src) {
 function patch(path, body) {
   const n = nodeAt(st, path, true);
   if (n) mergeLocal(n, body);
-  render();
+  scheduleRender();
   return enqueue(async () => {
     try { await jpatch(path, body); }
     catch (e) { bus.push(`[PATCH-FAIL] ${path || '/'} ${e.message}`); }

@@ -5,6 +5,10 @@
 - [x] 다종목 캔들의 종목·주기·overlay/pane·독립축·등락률/기준값100 비교 모델과 C1~C5 trace를 설계에 확정했다.
 - [x] 사용자가 2026-09-05 다종목 캔들 설계를 APPROVED하고 4축 침범 금지 조건으로 구현을 지시했다.
 - [x] 캔들 추가 전 종목·주기·표시·비교 설정 UI를 구현하고 C0 정적 검토와 C1~C5 자동검증을 통과했다.
+- [x] LWC의 가시 축 제한에 맞춰 자동 원가격 오버레이를 right/left/compare로 배정하고 좌측 축을 활성화했다.
+- [x] 추가 설정을 값 수집/파생 패치의 2단계로 바꿔 schema create 순서 의존을 제거했다.
+- [x] STATE patch 렌더를 requestAnimationFrame당 1회로 합쳐 기준값 기록 중 재진입을 차단했다.
+- [x] pane 목록과 pane 삭제가 raw props 대신 Add-on normalize 결과를 사용하도록 통일했다.
 
 ## 할 일
 
@@ -14,13 +18,13 @@ REMEDIATION_REQUIRED
 
 ```text
 branch       : main
-commit       : 66f0aae8ff35dacd02e5cb1129afeade3df2c585
-worktree     : 기존 app.js/desk.js 변경을 보존하고 다종목 캔들 구현·문서·테스트 변경 존재
+commit       : 5469472 feat-add-multi-symbol-candle-comparison
+worktree     : 가시 축·렌더 합병·정규화 pane 판정 보완 변경 존재
 STATE        : state/workspace.json schemaVersion 5
 대상 스키마  : schemaVersion 5
 설계 상태    : APPROVED (다종목 캔들 범위)
 OPEN         : 0
-게이트       : 다종목 캔들 자동검증 PASS; 실제 브라우저 acceptance 대기
+게이트       : 다종목 캔들 자동검증에 자동축 right/left/compare trace 추가; 실제 브라우저 acceptance 대기
 다음 설계 ID : D3.chart.candle-source, D5.candles.compare,
                D7.chart.data-diff, D11.trace.multi-symbol-candles
 ```

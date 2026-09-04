@@ -1,0 +1,224 @@
+{
+  "activeScreen": "0101",
+  "globalOn": true,
+  "screens": [
+    {
+      "id": "0101",
+      "items": [
+        {
+          "enabled": true,
+          "id": "005930.candles",
+          "kind": "candles",
+          "order": 0,
+          "props": {
+            "code": "005930",
+            "count": 300,
+            "interval": "D",
+            "name": "삼성전자",
+            "pane": 0
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "005930.ma5",
+          "kind": "ma",
+          "order": 1,
+          "props": {
+            "code": "005930",
+            "color": "#f2b632",
+            "pane": 0,
+            "period": 5
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "005930.ma20",
+          "kind": "ma",
+          "order": 2,
+          "props": {
+            "code": "005930",
+            "color": "#4f9cf9",
+            "pane": 0,
+            "period": 20
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "005930.volume",
+          "kind": "volume",
+          "order": 3,
+          "props": {
+            "code": "005930",
+            "pane": 1,
+            "paneHeight": 120
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "005930.signals",
+          "kind": "signals",
+          "order": 4,
+          "props": {
+            "code": "005930",
+            "fast": 5,
+            "slow": 20
+          },
+          "visible": true
+        }
+      ],
+      "name": "삼성전자"
+    },
+    {
+      "id": "0102",
+      "items": [
+        {
+          "enabled": true,
+          "id": "000660.candles",
+          "kind": "candles",
+          "order": 0,
+          "props": {
+            "code": "000660",
+            "count": 300,
+            "interval": "D",
+            "name": "SK하이닉스",
+            "pane": 0
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "000660.ma5",
+          "kind": "ma",
+          "order": 1,
+          "props": {
+            "code": "000660",
+            "color": "#f2b632",
+            "pane": 0,
+            "period": 5
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "000660.ma20",
+          "kind": "ma",
+          "order": 2,
+          "props": {
+            "code": "000660",
+            "color": "#4f9cf9",
+            "pane": 0,
+            "period": 20
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "000660.volume",
+          "kind": "volume",
+          "order": 3,
+          "props": {
+            "code": "000660",
+            "pane": 1,
+            "paneHeight": 120
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "000660.signals",
+          "kind": "signals",
+          "order": 4,
+          "props": {
+            "code": "000660",
+            "fast": 5,
+            "slow": 20
+          },
+          "visible": true
+        }
+      ],
+      "name": "SK하이닉스"
+    },
+    {
+      "id": "0103",
+      "items": [
+        {
+          "enabled": true,
+          "id": "035720.candles",
+          "kind": "candles",
+          "order": 0,
+          "props": {
+            "code": "035720",
+            "count": 300,
+            "interval": "D",
+            "name": "카카오",
+            "pane": 0
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "035720.ma5",
+          "kind": "ma",
+          "order": 1,
+          "props": {
+            "code": "035720",
+            "color": "#f2b632",
+            "pane": 0,
+            "period": 5
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "035720.ma20",
+          "kind": "ma",
+          "order": 2,
+          "props": {
+            "code": "035720",
+            "color": "#4f9cf9",
+            "pane": 0,
+            "period": 20
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "035720.volume",
+          "kind": "volume",
+          "order": 3,
+          "props": {
+            "code": "035720",
+            "pane": 1,
+            "paneHeight": 120
+          },
+          "visible": true
+        },
+        {
+          "enabled": true,
+          "id": "035720.signals",
+          "kind": "signals",
+          "order": 4,
+          "props": {
+            "code": "035720",
+            "fast": 5,
+            "slow": 20
+          },
+          "visible": true
+        }
+      ],
+      "name": "카카오"
+    }
+  ],
+  "trade": {
+    "autoTrade": false,
+    "code": "005930",
+    "price": 0,
+    "priceType": "market",
+    "qty": 1
+  },
+  "version": 1
+}

@@ -1,0 +1,49 @@
+:root{--bg:#14161c;--fg:#d8dce6;--pn:#1c1f27;--ln:#2c3140;--ac:#5b8def}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 "Malgun Gothic",system-ui,sans-serif;display:flex;flex-direction:column}
+header{flex:0 0 auto;display:flex;gap:14px;align-items:center;padding:8px 12px;background:var(--pn);border-bottom:1px solid var(--ln);flex-wrap:wrap}
+.grp{display:flex;gap:4px}
+.tag{font:12px ui-monospace,Consolas,monospace;color:#9aa3b5}
+button{background:#252a35;color:var(--fg);border:1px solid var(--ln);border-radius:4px;padding:4px 10px;cursor:pointer;font:inherit}
+button:hover{border-color:var(--ac)}
+button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+button.buy{background:#1e6f5c;border-color:#1e6f5c;color:#fff}
+button.sell{background:#8e3b3b;border-color:#8e3b3b;color:#fff}
+main{flex:1 1 auto;display:flex;min-height:420px;overflow:hidden}
+#chartWrap{flex:1 1 auto;min-width:0;min-height:420px;padding:8px;display:flex}
+#chart{flex:1 1 auto;width:100%;height:100%;min-height:400px}
+aside{flex:0 0 262px;width:262px;border-left:1px solid var(--ln);background:var(--pn);overflow-y:auto;padding:8px}
+.box{border:1px solid var(--ln);border-radius:5px;padding:8px;margin-bottom:8px}
+.box h3{margin:0 0 6px;font-size:12px;color:#9aa3b5;font-weight:600}
+#items label{display:flex;gap:6px;align-items:center;margin:3px 0;font-size:12px}
+#panes>div{display:flex;gap:6px;align-items:center;margin:4px 0;font-size:12px}
+.row{display:flex;gap:6px;margin:6px 0}
+label{display:flex;gap:6px;align-items:center;margin:3px 0}
+input[type=number]{width:100%;background:#11131a;color:var(--fg);border:1px solid var(--ln);border-radius:4px;padding:4px}
+input[type=range]{flex:1 1 auto;width:100%}
+footer{flex:0 0 76px;overflow-y:auto;border-top:1px solid var(--ln);background:#101218;padding:6px 12px}
+.mono{font:11px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-all}
+aside{flex:0 0 300px;width:300px}
+.box h3{display:flex;align-items:center;justify-content:space-between;gap:6px}
+#tree{font-size:12px}
+.node{margin:1px 0}
+.nrow{display:flex;align-items:center;gap:4px;padding:2px 3px;border-radius:3px}
+.nrow:hover{background:#232833}
+.tw{width:14px;text-align:center;cursor:pointer;color:#7d879c;user-select:none;flex:0 0 14px}
+.tw.pad{cursor:default}
+.nlab{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nlab.pane{color:#9ecbff;font-weight:600}
+.nlab.item{color:var(--fg)}
+.nsub{color:#6f7789;font-size:11px}
+.children{margin-left:13px;border-left:1px dotted #333a49;padding-left:6px}
+.del{background:none;border:none;color:#8a5f5f;cursor:pointer;padding:0 3px;font-size:12px;flex:0 0 auto}
+.del:hover{color:#e07070}
+.prow{display:flex;align-items:center;gap:5px;margin:2px 0}
+.pk{flex:0 0 74px;color:#8d97ab;font-size:11px}
+.pv{flex:1 1 auto;min-width:0}
+.pv input[type=number]{width:100%;padding:2px 4px;font-size:11px}
+.pv input[type=color]{width:100%;height:20px;padding:0;border:1px solid var(--ln);border-radius:3px;background:#11131a}
+.pv input[type=range]{width:100%}
+.hval{flex:0 0 42px;text-align:right;color:#8d97ab;font-size:11px;font-family:ui-monospace,Consolas,monospace}
+#addWrap select{background:#252a35;color:var(--fg);border:1px solid var(--ln);border-radius:4px;font-size:11px;padding:2px}

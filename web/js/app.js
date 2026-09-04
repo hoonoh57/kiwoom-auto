@@ -146,16 +146,17 @@ function closeForm(id) {
 function addVd() {
   if (ds.VD_MAX && Object.keys(st.vds).length >= ds.VD_MAX) { bus.push('[VD+] 상한 도달'); return; }
   const id = ds.nextVdId(st);
-  const order = Object.keys(st.vds).length;
-  patch('', { vds: { [id]: ds.defaultVd('VD' + (order + 1), order) }, activeVd: id });
-  bus.push('[VD+] ' + id);
+  const label = ds.nextVdLabel(st);
+  patch('', { vds: { [id]: ds.defaultVd(label, ds.nextVdOrder(st)) }, activeVd: id });
+  bus.push(`[VD+] ${id} label=${label}`);
 }
 
 async function delVd(id) {
   const ids = ds.vdOrder(st);
   if (ids.length <= 1) { bus.push('[VD-] 마지막 가상화면은 삭제할 수 없습니다'); return; }
   const own = Object.keys(st.forms).filter((fid) => st.forms[fid].vd === id);
-  if (!window.confirm(`${st.vds[id].label} 삭제. 소속 자식폼 ${own.length}개도 함께 삭제합니다.`)) return;
+  const ok = await askOk(`${st.vds[id].label} 삭제. 소속 자식폼 ${own.length}개도 함께 삭제합니다.`, '삭제');
+  if (!ok) { bus.push('[VD-] 취소 ' + id); return; }
   const p = { vds: { [id]: ds.DEL }, forms: {} };
   for (const fid of own) p.forms[fid] = ds.DEL;
   for (const vid of ids) {
@@ -170,9 +171,11 @@ async function delVd(id) {
 
 function vdMenu(id, x, y) {
   menuAt(x, y, [
-    ['이름 변경', () => {
-      const v = prompt('가상화면 이름', st.vds[id].label);
-      if (v) patch('vds/' + id, { label: v.slice(0, 8) });
+    ['이름 변경', async () => {
+      const v = await askText('가상화면 이름', st.vds[id].label, 8);
+      if (!v) { bus.push('[VD~] 취소 ' + id); return; }
+      patch('vds/' + id, { label: v });
+      bus.push(`[VD~] ${id} label=${v}`);
     }],
     ['삭제', () => delVd(id)],
   ]);
@@ -239,6 +242,77 @@ function menuAt(x, y, items) {
     window.addEventListener('keydown', onMenuKey, true);
     window.addEventListener('blur', closeMenu);
   }, 0);
+}
+
+/* ---- 인앱 대화상자: native prompt/confirm 의존 제거 ---- */
+function mkBtn(label, cls, fn) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  if (cls) b.className = cls;
+  b.textContent = label;
+  b.onclick = fn;
+  return b;
+}
+
+function modal(build) {
+  return new Promise((resolve) => {
+    closeMenu();
+    const back = document.createElement('div');
+    back.className = 'mback';
+    const box = document.createElement('div');
+    box.className = 'mbox';
+    back.append(box);
+    let done = false;
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(null); }
+    };
+    function end(v) {
+      if (done) return;
+      done = true;
+      window.removeEventListener('keydown', onKey, true);
+      back.remove();
+      resolve(v);
+    }
+    back.addEventListener('pointerdown', (e) => { if (e.target === back) end(null); });
+    window.addEventListener('keydown', onKey, true);
+    document.body.append(back);
+    build(box, end);
+  });
+}
+
+function askText(title, value, maxLen) {
+  return modal((box, end) => {
+    const t = document.createElement('div');
+    t.className = 'mttl';
+    t.textContent = title;
+    const inp = document.createElement('input');
+    inp.className = 'minp';
+    inp.type = 'text';
+    inp.value = value || '';
+    inp.maxLength = maxLen || 32;
+    const ok = () => end(inp.value.trim() || null);
+    inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); ok(); } };
+    const row = document.createElement('div');
+    row.className = 'mrow';
+    row.append(mkBtn('취소', '', () => end(null)), mkBtn('확인', 'on', ok));
+    box.append(t, inp, row);
+    inp.focus();
+    inp.select();
+  });
+}
+
+function askOk(title, yesLabel) {
+  return modal((box, end) => {
+    const t = document.createElement('div');
+    t.className = 'mttl';
+    t.textContent = title;
+    const row = document.createElement('div');
+    row.className = 'mrow';
+    const no = mkBtn('취소', '', () => end(false));
+    row.append(no, mkBtn(yesLabel || '확인', 'sell', () => end(true)));
+    box.append(t, row);
+    no.focus();
+  });
 }
 
 /* ---- 화면검색 / 퀵툴바 / 단축키 ---- */

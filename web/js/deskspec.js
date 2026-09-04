@@ -57,6 +57,23 @@ export function nextVdId(st) {
   return 'vd' + (n + 1);
 }
 
+export function nextVdOrder(st) {
+  let n = -1;
+  for (const v of Object.values(obj(st.vds))) n = Math.max(n, obj(v).order | 0);
+  return n + 1;
+}
+
+export function nextVdLabel(st) {
+  let n = 0;
+  for (const [id, v] of Object.entries(obj(st.vds))) {
+    n = Math.max(n, idNum(String(obj(v).label ?? '')), idNum(id));
+  }
+  const used = new Set(Object.values(obj(st.vds)).map((v) => String(obj(v).label ?? '')));
+  let s = String(n + 1);
+  while (used.has(s)) s = String(+s + 1);
+  return s;
+}
+
 export function nextFormId(st) {
   let n = obj(st.seq).form | 0;
   for (const k of Object.keys(obj(st.forms))) n = Math.max(n, idNum(k));
@@ -133,6 +150,8 @@ export function reconcile(st0, cat, bounds) {
     st.vds[id] = v;
     i++;
   }
+  // order 재번호: 중복/공백 제거. 표시 순서는 그대로 보존된다.
+  vdOrder(st).forEach((id, k) => { st.vds[id].order = k; });
   if (!st.vds[st.activeVd]) st.activeVd = vdOrder(st)[0];
 
   for (const id of Object.keys(st.forms).sort(byIdNum)) {

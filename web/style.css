@@ -107,3 +107,11 @@ footer{flex:0 0 auto;display:flex;gap:10px;align-items:center;border-top:1px sol
 .addcfg-row span{flex:0 0 58px}
 .addcfg-row input,.addcfg-row select{flex:1 1 auto;min-width:0;padding:3px 4px;background:#101219;color:var(--fg);border:1px solid var(--ln);border-radius:3px;font-size:11px;font-family:inherit}
 .addcfg-actions{display:flex;justify-content:flex-end;gap:5px;margin-top:7px}
+
+/* ---- 인앱 대화상자 ---- */
+.mback{position:fixed;inset:0;z-index:9800;display:flex;align-items:center;justify-content:center;background:#000000a8}
+.mbox{min-width:280px;max-width:min(92vw,420px);display:flex;flex-direction:column;gap:9px;padding:14px;background:#1f232d;border:1px solid #394154;border-radius:6px;box-shadow:0 12px 34px #000b}
+.mttl{font-size:13px;color:#cfd6e4;white-space:pre-wrap;word-break:break-word}
+.minp{background:#11131a;color:var(--fg);border:1px solid var(--ln);border-radius:4px;padding:5px 7px;font:inherit}
+.minp:focus{outline:none;border-color:var(--ac)}
+.mrow{display:flex;justify-content:flex-end;gap:6px}

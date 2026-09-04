@@ -16,7 +16,8 @@ const engine = {
   },
   removeSeries(series) { removed.push(series); },
   setSeriesScaleOptions(series, options) { series.scaleOptions = { ...options }; },
-  trimPanes() {}, setPaneStretch() {}, setBarSpacing() {}, setAutoScale() {}, scrollToRealTime() {},
+  trimPanes() {}, setPaneStretch() {}, setBarSpacing() {}, setAutoScale() {},
+  scrollToRealTime() { this.scrolls = (this.scrolls || 0) + 1; },
 };
 
 const bar = (time, close) => ({ time, open: close - 1, high: close + 2, low: close - 2, close, volume: 1 });
@@ -112,5 +113,8 @@ assert.deepEqual(autoSeries.map((s) => s.options.priceScaleId), ['right', 'left'
 assert.deepEqual(autoSeries[0].scaleOptions, { visible: true, autoScale: true });
 assert.deepEqual(autoSeries[1].scaleOptions, { visible: true, autoScale: true });
 assert.equal(autoSeries[2].scaleOptions, undefined);
+autoRuntime.apply(autoProfile, true, ctx, true);
+autoRuntime.apply(autoProfile, true, ctx, true);
+assert.equal(engine.scrolls, 1);
 
 console.log('[PASS] multi-symbol candles overlay/pane/locality/idempotence');

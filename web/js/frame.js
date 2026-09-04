@@ -46,7 +46,7 @@ export function createFrame(host, opt0) {
     root.style.height = rect.h + 'px';
   };
 
-  root.addEventListener('pointerdown', () => { if (on.focus) on.focus(); }, true);
+  root.addEventListener('pointerdown', (e) => { if (on.focus) on.focus(e); }, true);
   bar.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     if (on.menu) on.menu(e.clientX, e.clientY);

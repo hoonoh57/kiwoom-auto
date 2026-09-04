@@ -78,7 +78,7 @@ export function createDesk(canvas, tabbar, cat, io) {
     const frame = createFrame(canvas, {
       minSize: meta.minSize,
       on: {
-        focus: () => raise(id),
+        focus: (e) => { io.log('[FOCUS] ' + id + ' ' + ((e && e.target && e.target.className) || '?')); raise(id); },
         geo: (r) => io.patch('forms/' + id, { rect: r, prevRect: r }),
         min: () => io.patch('forms/' + id, { winState: 'min' }),
         max: () => toggleMax(id),

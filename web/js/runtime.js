@@ -35,6 +35,7 @@ export function activePanes(profile, globalOn, ctx) {
 
 export function createRuntime(engine) {
   const live = new Map();
+  let didInitialScroll = false;
 
   function desired(profile, globalOn, ctx) {
     const panes = activePanes(profile, globalOn, ctx);
@@ -105,7 +106,7 @@ export function createRuntime(engine) {
         engine.setPaneStretch(panes.map((p) => p.h));
         if (view.barSpacing > 0) engine.setBarSpacing(view.barSpacing);
         engine.setAutoScale(view.autoScale !== false);
-        engine.scrollToRealTime();
+        if (!didInitialScroll) { engine.scrollToRealTime(); didInitialScroll = true; }
       }
       return { ops, panes };
     },

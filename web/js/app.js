@@ -174,6 +174,11 @@ function vdMenu(id, x, y) {
     ['이름 변경', async () => {
       const v = await askText('가상화면 이름', st.vds[id].label, 8);
       if (!v) { bus.push('[VD~] 취소 ' + id); return; }
+      if (ds.hasVdLabel(st, v, id)) {
+        bus.push(`[VD~] 중복 이름 ${id} label=${v}`);
+        await tell(`이미 사용 중인 가상화면 이름입니다.\n${v}`);
+        return;
+      }
       patch('vds/' + id, { label: v });
       bus.push(`[VD~] ${id} label=${v}`);
     }],
@@ -312,6 +317,20 @@ function askOk(title, yesLabel) {
     row.append(no, mkBtn(yesLabel || '확인', 'sell', () => end(true)));
     box.append(t, row);
     no.focus();
+  });
+}
+
+function tell(title) {
+  return modal((box, end) => {
+    const t = document.createElement('div');
+    t.className = 'mttl';
+    t.textContent = title;
+    const row = document.createElement('div');
+    row.className = 'mrow';
+    const ok = mkBtn('확인', 'on', () => end(true));
+    row.append(ok);
+    box.append(t, row);
+    ok.focus();
   });
 }
 

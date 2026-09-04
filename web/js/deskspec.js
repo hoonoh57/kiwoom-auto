@@ -66,12 +66,19 @@ export function nextVdOrder(st) {
 export function nextVdLabel(st) {
   let n = 0;
   for (const [id, v] of Object.entries(obj(st.vds))) {
-    n = Math.max(n, idNum(String(obj(v).label ?? '')), idNum(id));
+    n = Math.max(n, idNum(String(obj(v).label ?? '').trim()), idNum(id));
   }
-  const used = new Set(Object.values(obj(st.vds)).map((v) => String(obj(v).label ?? '')));
+  const used = new Set(Object.values(obj(st.vds)).map((v) => String(obj(v).label ?? '').trim()));
   let s = String(n + 1);
   while (used.has(s)) s = String(+s + 1);
   return s;
+}
+
+export function hasVdLabel(st, label, exceptId) {
+  const wanted = String(label ?? '').trim();
+  if (!wanted) return false;
+  return Object.entries(obj(st.vds)).some(([id, v]) =>
+    id !== exceptId && String(obj(v).label ?? '').trim() === wanted);
 }
 
 export function nextFormId(st) {
@@ -143,7 +150,7 @@ export function reconcile(st0, cat, bounds) {
   let i = 0;
   for (const id of Object.keys(st.vds).sort(byIdNum)) {
     const v = obj(st.vds[id]);
-    v.label = sstr(v.label, String(i + 1));
+    v.label = sstr(v.label, String(i + 1)).trim() || String(i + 1);
     v.order = isNum(v.order) ? v.order : i;
     v.z = arr(v.z).filter((x) => typeof x === 'string');
     for (const k of Object.keys(v)) if (!VD_KEYS.includes(k)) delete v[k];
@@ -152,6 +159,18 @@ export function reconcile(st0, cat, bounds) {
   }
   // order 재번호: 중복/공백 제거. 표시 순서는 그대로 보존된다.
   vdOrder(st).forEach((id, k) => { st.vds[id].order = k; });
+  // label 유일성: 먼저 나온 라벨을 보존하고 중복은 해당 VD 번호로 복구한다.
+  const labels = new Set();
+  for (const id of vdOrder(st)) {
+    let label = st.vds[id].label;
+    if (labels.has(label)) {
+      const own = String(idNum(id));
+      label = own !== '0' && !labels.has(own) ? own : nextVdLabel(st);
+      while (labels.has(label)) label = String(+label + 1);
+      st.vds[id].label = label;
+    }
+    labels.add(label);
+  }
   if (!st.vds[st.activeVd]) st.activeVd = vdOrder(st)[0];
 
   for (const id of Object.keys(st.forms).sort(byIdNum)) {

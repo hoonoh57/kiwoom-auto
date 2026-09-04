@@ -585,30 +585,45 @@ AI가 세션마다 달라져도
 Part A의 추상 용어를 이 프로젝트의 실체에 1:1로 매핑한다. **이 표만 프로젝트마다 다시 쓴다.**
 여기에 적히지 않은 어휘는 Part A의 규칙 해석에 사용하지 않는다.
 ```
-B1  ENGINE 위치        : <경로>
-B2  ADDON 위치         : <경로>  (kind 1개 = 파일/폴더 1개)
-B3  BRIDGE 위치        : <경로>
-B4  STATE 위치/스키마  : <파일 경로> / <스키마 버전>
-B5  primitive 어휘     : <Core가 알아도 되는 generic primitive 목록>
-B6  금지 어휘          : <Core/Bridge에 등장하면 안 되는 feature 용어 목록>
-B7  item 식별자 규칙   : <id 생성/불변성 규칙>
-B8  effective 계산식   : effective = <이 프로젝트의 전역·개별 플래그 조합>
-B9  recorder 실행      : <명령>
-B10 static gate 실행   : <명령>
-B11 semantic gate 실행 : <명령>  (T1..T13 매핑)
-B12 acceptance 절차    : <실제 사용 환경 확인 방법>
-B13 frozen 경계        : <수정 금지 영역>
-B14 design.md 위치     : <경로>
-B15 설계 ID 규칙       : <예: D<장>.<영역>.<이름>>
-B16 추적성 표기 방식   : <코드에서 설계 ID를 참조하는 방법>
-B17 T12 수행 방법      : <검토자 / 새 세션 / 비교 산출물 형식>
-B18 canonical fixture  : <D4 예시 STATE 파일 경로>
-B19 골든 trace 위치    : <D11 기대 trace 파일/섹션>
-B20 승인 기록 위치     : <todo.md 현재 좌표의 설계도 상태 필드>
-B21 검증 실행 절차     : <branch 확인 -> pull -> 스크립트 1개, 실제 명령>
-B22 로그 저장 위치     : <전체 로그 파일/아티팩트 경로>
-B23 줄끝 정책          : <.gitattributes 설정값>
-B24 확인 필요 항목     : <이 프로젝트에서 사용자 UI 컨펌이 필요한 범위>
+B1  ENGINE 위치        : web/js/core.js(차트 primitive), web/js/frame.js(자식폼 primitive)
+B2  ADDON 위치         : web/js/addons.js(차트 series kind), web/js/screens/<kind>.js(screen kind)
+B3  BRIDGE 위치        : web/js/runtime.js(series diff), web/js/desk.js(form diff)
+B4  STATE 위치/스키마  : state/workspace.json / schemaVersion 5
+B5  primitive 어휘     : chart, series, priceLine, markers, pane, frame, contentHost, rect,
+                         zIndex, visibility, titleBar, drag, resize, minimize, maximize, destroy
+B6  금지 어휘          : candles, ma, volume, macd, rsi, amount, signals, chartScreen,
+                         quote, order, log, 0101, 0615, 8949, 0900, 종목연동, 가상화면정책
+B7  item 식별자 규칙   : form은 f<증가정수>, series는 form 내부의 <kind><증가정수>;
+                         발급 후 불변·재사용 금지, 카운터는 STATE seq가 소유
+B8  effective 계산식   : formEffective = globalOn && form.visible &&
+                         (form.allVd || form.vd == activeVd);
+                         seriesEffective = formEffective && item.enabled && item.visible
+B9  recorder 실행      : 목표 `.venv\Scripts\python.exe check.py --recorder` (현재 미구현)
+B10 static gate 실행   : 현재 `.venv\Scripts\python.exe check.py`;
+                         목표 `.venv\Scripts\python.exe check.py --static`
+B11 semantic gate 실행 : 목표 `.venv\Scripts\python.exe check.py --semantic` (현재 미구현, T1~T13)
+B12 acceptance 절차    : start.bat 실행 후 상단 1~8 클릭/Ctrl+1~8, VD별 폼 격리,
+                         모든 VD 표시의 동일 위치, 전체/현재 VD 종목연동을 실제 브라우저에서 확인
+B13 frozen 경계        : app/store.py의 generic 경로 CRUD, app/main.py의 /api/node 계약,
+                         web/vendor/lwc.standalone.js
+B14 design.md 위치     : design.md
+B15 설계 ID 규칙       : D<1~14>.<영역>.<항목>
+B16 추적성 표기 방식   : 공개 함수 바로 위 주석 `// Design: D<번호>.<영역>.<항목>`;
+                         Python은 `# Design: ...`, 테스트명은 설계 ID를 포함
+B17 T12 수행 방법      : 코드를 보지 않은 새 세션이 design.md만 읽고 공개 시그니처와
+                         D11 trace를 재작성한 뒤 check.py --t12가 원본과 비교
+B18 canonical fixture  : 목표 state/workspace.v5.fixture.json (현재 미생성)
+B19 골든 trace 위치    : 현재 design.md D11;
+                         목표 tests/fixtures/desk-traces.json (현재 미생성)
+B20 승인 기록 위치     : todo.md `할 일 > 현재 좌표`의 `설계 상태` 필드
+B21 검증 실행 절차     : git status --short --branch -> git pull --ff-only ->
+                         .venv\Scripts\python.exe check.py -> 최종 상태 1줄
+B22 로그 저장 위치     : 목표 artifacts/check.log (현재 미생성)
+B23 줄끝 정책          : 목표 .gitattributes의 `* text=auto`,
+                         `*.py/*.js/*.json/*.md text eol=lf`, `*.bat/*.ps1 text eol=crlf`;
+                         현재 .gitattributes 미생성
+B24 확인 필요 항목     : 상단 VD 아이콘의 키움 HTS 유사성, 드래그/리사이즈 조작감,
+                         최소화/최대화/겹침 순서, 8개 VD 전환 시 시각적 연속성
 ```
 B5/B6가 비어 있으면 계층 심사를 시작하지 않는다.
 B14/B15가 비어 있으면 코드 작업을 시작하지 않는다.

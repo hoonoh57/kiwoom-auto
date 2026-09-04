@@ -1,323 +1,253 @@
-# design.md — 구현 명세 / 설계도
+# design.md — 8개 가상화면과 자식폼 설계
 
-상태: APPROVED (Q1~Q4 확정)
-대상 스키마: schemaVersion 5 (현재 코드 = 4)
-복구 권위 아님. 세션 복구는 rules.md + todo.md 2개만 읽는다(A0).
+상태: DRAFT
+대상 스키마: schemaVersion 5 (현재 실행 코드와 STATE = 4)
+OPEN QUESTIONS: 0
+승인 범위: 없음. C1 산출물과 T12가 미완료이므로 제품 코드 수정 금지.
 
----
+## 조사 근거
 
-## 0. 이 문서의 범위
+공식 키움 영웅문4 도움말을 2026-09-04에 확인했다.
 
-가상 데스크(VD)와 자식폼(child form)을 도입하여, 키움 영웅문4의 가상화면 모델을
-4축 + 애드온 구조로 재정의한다. 차트는 자식폼의 한 종류(screen kind)로 격하된다.
+| 확인 사실 | 설계 반영 | 출처 |
+|---|---|---|
+| 가상화면은 HTS가 별도 창처럼 취급하는 논리 공간이다. | VD는 폼 배치와 전환 상태를 소유한다. | https://download.kiwoom.com/hero4_help_new/qa24.htm |
+| 우측 상단 선택란과 `Ctrl+번호`로 전환한다. | 상단에 1~8 고정 아이콘과 `Ctrl+1`~`Ctrl+8`을 둔다. | 동일 |
+| 가상화면마다 서로 다른 화면을 배치한다. | 자식폼은 소속 VD와 배치 좌표를 가진다. | 동일 |
+| 종목연동은 모든 가상화면 또는 현재 가상화면 두 모드다. | `symLink = all | vd`로 저장한다. | 동일 |
+| 현재 VD 모드는 이벤트 화면이 속한 VD의 열린 화면만 바꾼다. | 연동 범위는 이벤트 발생 폼의 `vd`로 계산한다. | 동일 |
+| 화면에는 중복생성, 종목코드연계, 공유그룹 속성이 있다. | 폼별 `link`, `shareGroup`; kind별 `single` 계약으로 분리한다. | https://download.kiwoom.com/hero4_help_new/hero100/qa06.htm |
+| 한 화면을 8개 VD의 동일 위치에 표시할 수 있다. | `allVd=true` 폼 하나를 복제 없이 모든 VD에 투영한다. | 동일 |
+| 타이틀바에는 공유그룹, 화면번호, 화면명이 표시된다. | 프레임 타이틀은 `[번호] 이름`과 공유그룹을 표시한다. | 동일 |
+| 화면번호 입력과 화면검색으로 화면을 연다. | 번호·이름·키워드 검색으로 활성 VD에 폼을 만든다. | https://download.kiwoom.com/hero4_help_new/0203.htm |
+| 저장화면은 가상화면별 화면 목록을 보존한다. | schema 5가 VD별 z-order와 폼 배치를 영속화한다. | https://download.kiwoom.com/hero4_help_new/p004.htm |
 
-이 tranche에서 코드는 쓰지 않는다. 승인 후 구현 tranche로 넘어간다.
+독립실행, 항상 위, 저장화면 0950~0999 생성 기능은 이번 범위에서 제외한다.
 
----
+## D1 — 범위와 비범위
 
-## 1. 조사 근거 (키움 영웅문4)
+### D1.vd.scope
 
-출처와 확인 사실만 적는다. 추정은 [추정]으로 표기한다.
+만들 것: 상단 `1 2 3 4 5 6 7 8` 고정 VD 아이콘, 클릭/`Ctrl+1`~`Ctrl+8` 전환, VD별 자식폼 생성·닫기·최소화·최대화·이동·크기·z-order, 모든 VD 동일 좌표 표시, 화면검색, 전체/현재 VD 종목연동, 폼별 종목연계 고정, schema 4→5 마이그레이션.
 
-| 사실 | 출처 |
-|---|---|
-| 가상화면은 물리 화면이 아닌 논리 공간. 총 8개 | download.kiwoom.com/hero4_help_new/qa24.htm |
-| 우측 상단 가상화면 선택란 클릭 또는 Ctrl+1~8로 전환 | 동일 |
-| 종목연동 모드 2종: "모든 가상화면에 종목연동" / "현재 가상화면에만 종목연동" (기능→종합환경설정→기타환경) | 동일 |
-| 자식폼은 화면번호로 식별([0101] 키움현재가, [0615] 키움미니차트, [8949] 주식미니주문) | 동일 |
-| 화면검색: 화면번호 직접 입력 또는 화면명/키워드 검색 | hero4_help_new/p003.htm |
-| 저장화면 번호대 0950~0999, 자동 부여 또는 사용자 지정 | hero4_help_new/p004.htm |
-| 자식폼 타이틀바 우클릭 → "모든 가상화면에 보이기"(단축키 V). 한 폼이 8개 VD에 동시 표시 | soms1.com 정리글 |
-| 종료 시 모든 가상화면의 화면 저장 옵션 존재 | htsw_help/kiwoom_fx/k001.html |
+만들지 않을 것: 9번째 VD, VD 추가·삭제·이름변경, 운영체제 독립창, 다중 모니터 최대화, 항상 위, 사용자 저장화면 번호 0950~0999, 키움 외형의 픽셀 단위 복제.
 
-핵심 시사점: **가상화면은 종목을 소유하지 않는다.** 종목은 자식폼이 소유하고,
-VD는 연동 정책과 폼 배치만 소유한다. 현재 구현(`VD1=삼성전자`)은 이 모델과 불일치한다.
+### D1.current.observation
 
----
+현재 `app.js`는 차트 ENGINE/BRIDGE 인스턴스를 하나만 만들고 `profiles/{vd}|{code}|{tf}`를 사용한다. `deskspec.js`는 앱에 연결되지 않은 schema 5 초안이며 VD 무제한 규칙이 이번 요구와 충돌한다. 이는 목표 설계가 아니라 remediation 대상 관측 사실이다.
 
-## 2. 현재 코드 관측 (schemaVersion 4, 커밋 d6b4d38)
+## D2 — 계층 매핑
 
-증거 기반 사실만 적는다.
+### D2.layer.map
 
-```
-window축 키       profiles/{vd}|{code}|{tf}          → VD가 종목을 소유(불일치)
-engine/runtime    app.js 모듈 전역 싱글턴 1개         → 폼 N개 수용 불가
-screen 개념        없음
-geometry          panes[].h(px) + view.barSpacing만   → 폼 rect/winState 없음
-서버              store.py 경로 트리, kind 무지        → A1.4 준수. 변경 불필요
-오염 레코드        items 0 / main h 776 인 키 8개      → 구버전 잔재, 마이그레이션 대상
-```
+```text
+STATE  state/workspace.json, web/js/deskspec.js
+  -> DESK BRIDGE  web/js/desk.js
+  -> SCREEN ADDON web/js/screens/<kind>.js
+  -> FRAME ENGINE web/js/frame.js
 
----
-
-## 3. D1 — 4축 좌표 재정의
-
-축의 개수와 이름은 유지한다. 각 축의 **소유물**만 교정한다.
-
-```
-project   전역        경로: ""
-vds       VD 목록/순서 경로: "vds"
-vd        VD 1개      경로: "vds/{vdId}"
-window    자식폼 1개   경로: "forms/{formId}"
+chart screen 내부:
+STATE form.body.items -> web/js/runtime.js(BRIDGE)
+  -> web/js/addons.js(ADDON) -> web/js/core.js(ENGINE)
 ```
 
-`forms`를 VD 하위가 아니라 **평면(flat)으로 둔다.** 이유: 한 폼이 여러 VD에 보이는
-"모든 가상화면에 보이기"를 폼 복제 없이 표현하기 위함이다. 복제하면 동일 상태가
-2곳에 저장되어 A1.4(desired state 단일 출처)를 깬다.
+`app/store.py`는 JSON 경로 CRUD만 수행한다. `desk.js`는 screen 이름별 분기를 두지 않는다. `frame.js`는 종목·차트·주문 의미를 모른다. Screen Add-on은 프레임, z-order, 영속화, 다른 Add-on 상태를 직접 다루지 않는다.
 
-### D1.1 project
+## D3 — item 모델
+
+### D3.form.fields
+
+| 필드 | 타입 | 기본값/범위 | 불변성 |
+|---|---|---|---|
+| `id` | `f` + 양의 정수 | 전역 유일 | 생성 후 불변 |
+| `screen` | 등록 kind | 필수 | 생성 후 불변 |
+| `vd` | `vd1`~`vd8` | 활성 VD | 이동 시 변경 |
+| `allVd`, `visible` | boolean | false, true | 변경 가능 |
+| `title` | string/null | null | 변경 가능 |
+| `code` | 6자리 문자열/null | kind 계약 | 변경 가능 |
+| `tf` | 허용 주기/null | kind 계약 | 변경 가능 |
+| `link` | `follow|pin` | follow | 변경 가능 |
+| `shareGroup` | `all|1..10` | all | 변경 가능 |
+| `rect` | `{x,y,w,h}` 정수 | kind 기본 크기 | 변경 가능 |
+| `winState` | `normal|min|max` | normal | 변경 가능 |
+| `prevRect` | rect | 최초 rect | 변경 가능 |
+| `body` | JSON object | Add-on 기본값 | 변경 가능 |
+
+### D3.vd.fields
+
+VD는 정확히 `vd1`~`vd8`이다. 각 VD는 `{label, order, z}`를 가지며 label은 `1`~`8`, order는 `0`~`7`, z는 바닥→최상단 폼 ID 배열이다. `allVd=true` 폼은 소속 VD의 z에 한 번만 존재한다.
+
+## D4 — STATE 스키마와 마이그레이션
+
+### D4.schema.root
 
 ```json
 {
-  "schemaVersion": 5,
-  "globalOn": true,
-  "activeVd": "vd1",
-  "symLink": "vd",            // "all" | "vd"  (키움 종목연동 2모드)
-  "layout": { "sidebarW": 300 },
-  "seq": { "form": 12 }        // formId 발급 카운터
-}
-```
-
-### D1.2 vds / vd
-
-```json
-"vds": {
-  "vd1": { "label": "1", "order": 0, "z": ["f1","f3"] },
-  "vd2": { "label": "2", "order": 1, "z": ["f2"] }
-}
-```
-
-`z`는 해당 VD에서의 자식폼 z-order다. 배열 순서가 곧 쌓임 순서이고 마지막이 최상단이다.
-`allVd: true` 폼은 `z`에 없어도 렌더된다(reconcile이 말단에 편입). VD 개수 상한은 두지 않는다.
-키움은 8개 고정이지만 우리는 동적 추가를 요구사항으로 받았다.
-
-### D1.3 window (자식폼)
-
-```json
-"forms": {
-  "f1": {
-    "screen": "chart",                  // screen kind (D3 카탈로그의 kind)
-    "vd": "vd1",                        // 소속 VD (allVd=true면 표시엔 무영향)
-    "allVd": false,
-    "title": null,                      // null이면 카탈로그 label 사용
-    "code": "005930",
-    "tf": "1m",
-    "rect": { "x": 12, "y": 12, "w": 820, "h": 520 },
-    "winState": "normal",               // "normal" | "min" | "max"
-    "prevRect": { "x": 12, "y": 12, "w": 820, "h": 520 },
-    "body": { }                          // screen kind가 소유하는 상태 (D4)
+  "schemaVersion": 5, "globalOn": true, "activeVd": "vd1", "symLink": "vd",
+  "layout": { "sidebarW": 300 }, "seq": { "form": 1 },
+  "vds": {
+    "vd1":{"label":"1","order":0,"z":["f1"]}, "vd2":{"label":"2","order":1,"z":[]},
+    "vd3":{"label":"3","order":2,"z":[]}, "vd4":{"label":"4","order":3,"z":[]},
+    "vd5":{"label":"5","order":4,"z":[]}, "vd6":{"label":"6","order":5,"z":[]},
+    "vd7":{"label":"7","order":6,"z":[]}, "vd8":{"label":"8","order":7,"z":[]}
+  },
+  "forms": {
+    "f1": {"screen":"chart","vd":"vd1","allVd":false,"visible":true,
+      "title":null,"code":"005930","tf":"1m","link":"follow","shareGroup":"all",
+      "rect":{"x":12,"y":12,"w":820,"h":520},"winState":"normal",
+      "prevRect":{"x":12,"y":12,"w":820,"h":520},
+      "body":{"panes":[],"items":{},"order":[],"view":{},"ui":{}}}
   }
 }
 ```
 
-`body`의 내부 구조는 **core/bridge가 해석하지 않는다.** screen addon만 해석한다(D2).
+canonical fixture는 `state/workspace.v5.fixture.json`에 둔다.
 
----
+### D4.migration.v4-v5
 
-## 4. D2 — 계층과 의존 방향
+1. 원본을 `state/workspace.v4.bak`로 복사하며 기존 백업은 덮어쓰지 않는다.
+2. `vd1`~`vd8`을 생성하고 기존 VD 1~4를 같은 번호에 대응한다.
+3. `profiles/{vd|code|tf}`를 키 오름차순으로 순회한다.
+4. `items`가 없거나 비어 있는 profile은 폐기하고 개수를 로그에 기록한다.
+5. 나머지는 `f1`부터 chart 폼으로 변환하고 profile 전체를 `body`로 이동한다.
+6. 유효한 `active.vd`는 유지하고 아니면 `vd1`을 사용한다.
+7. `profiles`, `active`를 제거하고 schemaVersion을 마지막에 5로 기록한다.
+8. 저장 실패 시 원본을 유지하고 부팅을 중단한다.
 
-```
-STATE(JSON store) -> DESK BRIDGE -> SCREEN ADDON -> (CHART BRIDGE -> SERIES ADDON -> ENGINE)
-```
+## D5 — kind 카탈로그
 
-2단 중첩 구조다. 상위 diff는 폼 단위, 하위 diff는 시리즈 단위이며 **동일한 3연산 계약**
-(`ensure/update/remove`)을 쓴다. 서로의 내부를 보지 않는다.
-
-파일 배치와 계층 대응:
-
-```
-app/store.py        STATE       경로 트리 CRUD. kind/폼/축 개념 무지. (변경 없음)
-app/main.py         전송        /api/node 3개 + 시세/주문. (변경 없음)
-web/js/deskspec.js  STATE 스펙  project/vds/vd/window 기본값·reconcile·마이그레이션
-web/js/desk.js      BRIDGE      폼 diff(ensure/update/remove) + z-order + geometry 반영
-web/js/screens.js   ADDON 등록  screen kind 레지스트리 (화면번호·label·mount 계약)
-web/js/screens/*.js ADDON 구현  chart.js, quote.js, order.js ... (kind 1개 = 파일 1개)
-web/js/frame.js     ENGINE      자식폼 DOM primitive(타이틀바·드래그·리사이즈·min/max)
-web/js/core.js      ENGINE      LWC primitive (변경 없음)
-web/js/runtime.js   CHART BRIDGE 시리즈 diff (변경 없음)
-web/js/addons.js    SERIES ADDON (변경 없음)
-web/js/statespec.js → deskspec.js의 window.body 스펙으로 흡수(파일 유지, 역할 축소)
-```
-
-금지 사항 재확인: `desk.js`와 `frame.js`에 `if (screen === 'chart')` 형태의 분기를
-두지 않는다. `store.py`에 form/vd/screen 이름을 넣지 않는다.
-
----
-
-## 5. D3 — screen kind 등록 계약 (단일 등록부)
-
-`screens.js` 한 블록에서만 등록한다(D13). 등록 즉시 화면검색 콤보·퀵툴바·추가 메뉴에
-자동 반영된다. 하드코딩된 화면 목록은 어디에도 두지 않는다.
+### D5.screen.contract
 
 ```js
-register('chart', {
-  no: '0615',                  // 화면번호. 4자리 문자열. 전역 유일(check.py C6)
-  label: '키움미니차트',
-  keywords: ['차트','chart','캔들'],
-  single: false,               // true면 VD당 1개만 허용
-  needCode: true,              // 종목연동 대상 여부
-  needTf: true,
-  defRect: { w: 820, h: 520 },
-  minSize: { w: 320, h: 200 },
-  defaultBody: (ctx) => ({...}),          // 신규 폼 body 초기값
-  reconcileBody: (body, ctx) => body,     // 저장된 body의 결손 보충 (D6)
-  mount(el, ctx) { return handle; },      // el 안에 자기 UI 구성. 반환값이 live handle
-  update(handle, form, ctx) {},           // code/tf/body 변경 반영
-  resize(handle) {},                      // rect 변경 후 1회
-  unmount(handle) {},                     // 자원 해제 (LWC chart.remove 등)
-});
+register(kind, {
+  no, label, keywords, single, needCode, needTf, defRect, minSize,
+  defaultBody(ctx), reconcileBody(body, ctx),
+  ensure(ctx, id, props), update(ctx, handle, prev, next), remove(ctx, handle)
+})
 ```
 
-`mount`가 받는 `el`은 프레임 내부의 빈 컨텐츠 div다. screen addon은 프레임·타이틀바·
-z-order·저장을 건드리지 않는다.
+초기 kind는 `chart(0615 키움미니차트)`, `quote(0101 키움현재가)`, `order(8949 주식미니주문)`, `log(0900 로그)`다. 번호는 전역 유일한 4자리 문자열이다. chart/quote/order는 needCode=true, chart만 needTf=true, 모두 single=false다.
 
-초기 카탈로그(요구사항 최소셋):
+Add-on은 자기 content host만 소유한다. ensure는 handle 하나를 반환하고 update/remove는 한 폼만 처리한다. 계약 오류는 `ScreenContractError(kind, field)`로 전달하고 Bridge는 해당 폼만 오류 상태로 표시한다.
 
-```
-0615 차트        chart   needCode/needTf   기존 차트 전체를 body로 수용
-0101 현재가       quote   needCode          /api/quote 표시
-8949 주식미니주문  order   needCode          수량/시장가/매수/매도
-0900 로그        log     -                 전역 로그 뷰
-```
+## D6 — Core primitive
 
----
+### D6.frame.api
 
-## 6. D4 — chart screen의 body = 기존 프로필
-
-기존 `profiles/{vd|code|tf}` 레코드 형태를 그대로 `forms/{id}.body`로 옮긴다.
-
-```json
-"body": {
-  "panes": [ { "id": "main", "label": "메인", "h": 300 } ],
-  "items": { "candles1": { "kind":"candles", "enabled":true, "visible":true, "props":{...} } },
-  "order": ["candles1"],
-  "view": { "barSpacing": 8, "autoScale": true },
-  "ui":   { "open": { "main": true } }
-}
+```text
+createFrame(host, id, rect) -> FrameHandle
+setFrameRect(handle, rect) -> void
+setFrameZ(handle, zIndex) -> void
+setFrameVisible(handle, boolean) -> void
+setFrameTitle(handle, text, shareGroup) -> void
+setFrameState(handle, normal|min|max, bounds) -> void
+getContentHost(handle) -> HTMLElement
+destroyFrame(handle) -> void
 ```
 
-즉 `statespec.js`의 `reconcile()`이 `chart.reconcileBody()`가 된다. 시리즈 애드온 계층은
-무변경이다. 폼마다 `createEngine`/`createRuntime` 인스턴스를 **각각** 만든다.
+호출은 O(1), 폼당 frame 하나와 content host 하나를 할당한다. rect는 정수이며 w/h는 minSize 이상이다. 파괴된 handle 호출은 `InvalidFrameHandle` 오류다. `web/js/core.js`는 chart/series/pane/priceLine/markers primitive만 제공하며 feature 분기를 갖지 않는다.
 
----
+## D7 — Bridge diff 알고리즘
 
-## 7. D5 — 종목연동 (symLink)
+### D7.desk.diff
 
-`project.symLink`가 `"all"`이면 어떤 폼에서 종목을 바꿔도 `needCode: true`인 **모든 폼**의
-code를 갱신한다. `"vd"`면 같은 VD에 속한 폼만 갱신한다(allVd 폼은 현재 활성 VD 기준).
-이 판정은 `desk.js`가 `needCode` 플래그만 보고 수행한다. screen 이름을 보지 않는다.
-
----
-
-## 8. D6 — 단일 복원 경로 (D7/I3 준수)
-
-복원 전용 함수·플래그·부팅 특례를 만들지 않는다. 전 경로가 아래 하나를 통과한다.
-
-```
-load()      = store.get("") -> reconcileProject() -> 결손 필드만 PATCH
-applyDesk() = desired(forms, activeVd) diff live  -> ensure/update/remove
-              -> z-order 반영 -> rect/winState 반영
+```text
+desired = forms 중 globalOn && visible && (allVd || vd == activeVd)
+removeIds = live - desired, id 내림차순
+ensureIds = desired - live, id 오름차순
+updateIds = desired ∩ live 중 propsHash 변경, id 오름차순
+remove -> ensure -> update -> z-order 순서로 적용
 ```
 
-`desired`는 순수 함수다. 같은 STATE로 두 번 호출하면 두 번째 ops는 0이어야 한다(T7).
-`scrollToRealTime`·`setBarSpacing`·`setPaneStretch`는 chart screen의 `update` 안에서
-**geo 변경이 있을 때만** 실행한다. 무조건 실행은 C3에서 정적 차단한다.
+live authority는 `Map<formId,{kind,propsHash,frame,addonHandle}>` 하나다. VD 전환도 같은 diff를 호출한다. allVd 폼은 활성 VD 일반 폼 뒤에 놓고, 여러 개면 소속 VD order와 form id 오름차순으로 쌓는다.
 
-### D6.1 reconcile 규칙 (하드코딩 금지의 실체)
+### D7.link.diff
 
-```
-1. 카탈로그에 없는 screen kind의 폼 -> 제거 대상으로 표기(삭제는 사용자 확인 후)
-2. body의 결손 필드 -> screen.reconcileBody()가 카탈로그 스키마로 보충
-3. z 배열에 없는 폼 -> 소속 VD의 z 말단에 편입
-4. z 배열에 있으나 forms에 없는 id -> z에서 제거
-5. rect가 캔버스를 벗어남 -> 가시 영역으로 이동(w/h는 minSize로 클램프)
-6. winState=max 인 폼이 2개 이상 -> z 최상단만 유지, 나머지는 prevRect로 복귀
-```
+이벤트 폼이 `link=pin`이면 자기 code만 바꾼다. `follow`이면 같은 shareGroup, link=follow, needCode=true인 폼 중 `symLink=all`은 전체 VD, `symLink=vd`는 이벤트 폼의 소속 VD만 갱신한다. allVd 폼도 소속 vd로 범위를 판정한다.
 
-애드온이 수백 개여도 규칙 수는 늘지 않는다. 이것이 4축 설계의 목적이다.
+## D8 — propsHash 정규화
 
----
+### D8.hash.canonical
 
-## 9. D8 — UI 레이아웃
+객체 키는 UTF-16 코드 단위 오름차순으로 재귀 정렬하고 배열 순서는 보존한다. `undefined`, 함수, `NaN`, 무한대는 오류다. null은 보존하고 -0은 0으로 바꾼다. ECMAScript `JSON.stringify`의 공백 없는 UTF-8 결과에 FNV-1a 32-bit를 적용해 소문자 8자리 hex로 출력한다.
 
-```
-[타이틀바]  로고 | VD 아이콘버튼(1 2 3 ... +) | 화면검색 콤보(번호/이름) | 퀵툴바 아이콘 | 모드
-[데스크]    position:relative 캔버스. 자식폼 absolute 배치. 활성 VD의 z 순서로 렌더
-[하단]      최소화된 폼의 탭 스트립
+## D9 — effective 계산식
+
+### D9.effective.form-series
+
+```text
+formEffective = globalOn && form.visible && (form.allVd || form.vd == activeVd)
+seriesEffective = formEffective && item.enabled && item.visible
 ```
 
-VD 버튼: 클릭 시 전환, `Ctrl+숫자`로도 전환(키움 동일), 우클릭 시 이름변경/삭제, `+`로 추가.
-화면검색 콤보: 입력값이 숫자면 `no` 접두 일치, 문자면 `label`/`keywords` 부분 일치.
-Enter 또는 항목 클릭 시 **현재 활성 VD에** 폼을 추가한다.
-퀵툴바: `screens.catalog()`에서 `quick: true`인 항목만 아이콘으로 노출.
+최소화 폼은 live를 유지하고 content만 숨긴다. 비활성 VD 일반 폼은 remove된다. 재활성화 때 정상 ensure 경로만 사용한다.
 
-자식폼 타이틀바 우측 버튼 3개: 최소화 `–`, 이전크기/최대화 토글 `□`, 닫기 `✕`.
-타이틀바 우클릭 메뉴: 모든 가상화면에 보이기(V) 토글, 다른 VD로 이동, 닫기.
+## D10 — 경계와 오류 처리
 
----
+| 입력 | 정확한 결과 |
+|---|---|
+| activeVd가 범위 밖 | vd1로 정규화 후 PATCH |
+| VD 키 누락/추가 | 정확히 vd1~vd8로 정규화 후 PATCH |
+| 미등록 screen | STATE 보존, 해당 폼 오류 표시, 자동 삭제 금지 |
+| 중복 화면번호 | 부팅 실패 `DuplicateScreenNo` |
+| rect가 캔버스 밖 | minSize 적용 후 타이틀바 32px가 보이게 이동 |
+| 한 VD에서 max가 둘 이상 | z 최상단만 max, 나머지는 prevRect normal |
+| z의 없는 form id | 제거 |
+| 일반 폼이 소속 VD z에 없음 | z 말단에 추가 |
+| 동일 STATE 재적용 | lifecycle operation 0 |
+| 저장 실패 | 메모리 STATE 미커밋, 오류 표시 |
 
-## 10. D9 — 저장 시점과 부하
+## D11 — 골든 trace
 
-```
-드래그/리사이즈 종료(pointerup) -> forms/{id} PATCH (rect, prevRect)
-min/max/닫기/추가/이동          -> 즉시 PATCH
-VD 전환                        -> activeVd PATCH
-차트 내부 변경                  -> forms/{id}/body PATCH (500ms 디바운스)
-주기 재그리기(15s)              -> 저장하지 않는다 (T7)
-```
+`H(x)`는 D8의 실제 8자리 propsHash이며 fixture에서는 실제 값으로 고정한다.
 
-렌더 픽셀을 그대로 되쓰지 않는다. 페인 높이는 비율 정규화 후 저장한다(현행 결함 교정).
-
----
-
-## 11. D10 — 마이그레이션 4 → 5
-
-파괴적 초기화를 금지한다(A0.2 교훈). 절차는 다음과 같다.
-
-```
-1. state/workspace.json 을 state/workspace.v4.bak 로 복사
-2. profiles/{vd|code|tf} 각 키에 대해:
-     items가 비었으면 폐기(오염 레코드 8건)
-     아니면 forms/f{n} 생성: screen="chart", vd, code, tf, body=해당 프로필
-     rect는 캐스케이드 타일(24px 오프셋), winState="normal"
-3. vds/{vd}에 label/order/z 부여. 기존 code/name/tf 필드는 제거(VD는 종목 비소유)
-4. project: activeVd=기존 active.vd, symLink="vd", seq.form=n
-5. profiles 노드 삭제. schemaVersion=5
+```text
+T1 f1 ON                 [{op:ensure,id:f1,kind:chart,propsHash:H(f1)}]
+T2 f1..f1000 ON          ensure 1000개, id 오름차순
+T3 f500 visible=false    [{op:remove,id:f500,kind:chart,propsHash:H(f500)}]
+T4 f500 다시 true        [{op:ensure,id:f500,kind:chart,propsHash:H(f500)}]
+T5 global OFF/ON         remove 1000개 내림차순 / ensure 1000개 오름차순
+T6 saved STATE fresh/apply 두 trace 동일
+T7 동일 STATE 두 번째 apply []
+T8 f500 rect 변경        [{op:update,id:f500,kind:chart,propsHash:H(f500-next)}]
+T9 N=1/10/1000           ensure 횟수만 1/10/1000
+T10 신규 kind 등록       ENGINE/BRIDGE/STATE diff 0
+T11 f500 변경            touch count 1
 ```
 
-마이그레이션은 클라이언트 부팅 시 1회 수행하고 결과를 로그 1줄로 보고한다.
+폼 내부 series도 같은 T1~T11 규칙을 `runtime.js`에 적용한다.
 
----
+## D12 — 성능 예산
 
-## 12. D14 — 성능 목표
+| N | 최초 ensure | 동일 STATE 재적용 | 폼 1개 변경 | 할당 상한 |
+|---:|---:|---:|---:|---:|
+| 1 | 1 | 0 | 1 | 폼당 frame 1 + handle 1 |
+| 10 | 10 | 0 | 1 | 폼당 동일 |
+| 1000 | 1000 | 0 | 1 | 폼당 동일 |
 
+활성 VD 폼 20개, 전체 100개에서 동일 STATE `applyDesk`는 개발 기준 PC에서 50ms 미만이고 lifecycle ops는 0이어야 한다.
+
+## D13 — 명명·배치와 공개 경계
+
+```text
+web/js/deskspec.js       schema 5 기본값·정규화·마이그레이션(STATE)
+web/js/desk.js           폼 diff·종목연동(BRIDGE)
+web/js/frame.js          자식폼 DOM primitive(ENGINE)
+web/js/screens.js        screen 등록부
+web/js/screens/chart.js  chart screen ADDON
+web/js/screens/quote.js  quote screen ADDON
+web/js/screens/order.js  order screen ADDON
+web/js/screens/log.js    log screen ADDON
+web/js/runtime.js        chart series BRIDGE
+web/js/addons.js         chart series ADDON
+web/js/core.js           chart primitive ENGINE
+app/store.py             generic JSON persistence
 ```
-폼 100개 등록 / 활성 VD에 20개 표시 시 applyDesk 재적용 < 50ms, ops=0
-비활성 VD 폼은 mount하지 않는다(lazy). 전환 시 mount, 이탈 시 unmount 하되 body는 유지
-```
 
----
+Screen 추가는 `screens/<kind>.js`와 `screens.js` 등록 1줄만 변경한다. desk/frame/deskspec/store에는 screen 이름 분기를 추가하지 않는다. 공개 함수는 `// Design: D...` 주석을 가진다.
 
-## 13. 검증 표
+## D14 — OPEN QUESTIONS
 
-| ID | 내용 | 판정 |
-|---|---|---|
-| T7 | 동일 STATE 2회 apply → 2회차 ops=0 | 자동 |
-| T14 | 폼 추가/닫기/이동 후 재기동 시 rect·z·body 동일 | 수동 |
-| T15 | allVd 토글 시 전 VD에 표시, 해제 시 원 VD만 | 수동 |
-| T16 | min→이전크기 복귀 시 prevRect와 픽셀 일치 | 수동 |
-| T17 | VD 3개에 서로 다른 tf 폼 배치 후 순회 → 각자 유지 | 수동 |
-| T18 | 마이그레이션 후 v4.bak과 items 수 일치 | 자동 |
-| T19 | check.py C1~C6 전부 PASS | 자동 |
-| T20 | 폼 100개 성능 목표 충족 | 자동 |
+없음.
 
----
-
-## 14. 확정 사항 (Q1~Q4)
-
-A1. VD 개수 무제한. VD_MAX = 0. Ctrl+1~8만 단축키 부여(VD_HOTKEYS=8).
-  버튼이 넘치면 타이틀바 VD 영역을 가로 스크롤한다.
-A2. 화면번호는 키움 실번호 차용(0101 현재가, 0615 차트, 8949 미니주문).
-  키움에 대응 화면이 없는 우리 고유 기능은 1xxx대를 쓴다. 번호는 전역 유일(C6).
-A3. 비활성 VD 폼은 unmount한다. body는 STATE에 남으므로 재mount 시 복원된다(D14).
-A4. items 0 인 오염 프로필 8건 폐기 승인. state/workspace.v4.bak 백업은 유지.
+다음 게이트 산출물은 아직 없다: `state/workspace.v5.fixture.json`, `tests/fixtures/desk-traces.json`, check.py의 `--static/--semantic/--recorder/--t12` 계약, 독립 검토자 T12 결과. 따라서 상태는 DRAFT다. 산출물과 T12 완료 후 REVIEWED, 사용자 승인 후 APPROVED로 바꾼다.

@@ -33,9 +33,17 @@ const profilePath = () => `profiles/${ACT.vd}|${ACT.code}|${ACT.tf}`;
 const getNode = (path) => api(nodePath(path));
 const patchNode = (path, body) => api(nodePath(path), J('PATCH', body));
 async function loadProfile() {
-  const saved = await getNode(profilePath());
-  const prof = reconcile(Object.keys(saved).length ? saved : defaultWindow(ACT.tf));
-  if (!Object.keys(saved).length) await patchNode(profilePath(), prof);
+  const path = profilePath();
+  const saved = await getNode(path);
+  const had = !!(saved && Array.isArray(saved.order) && saved.order.length);
+  const prof = reconcile(saved);
+  const items = { ...prof.items };
+  for (const k of Object.keys((saved && saved.items) || {})) {
+    if (!prof.items[k]) items[k] = '__delete__';
+  }
+  await patchNode(path, { panes: prof.panes, items,
+                          order: prof.order, view: prof.view, ui: prof.ui });
+  if (!had) log('[PROFILE-SEED] ' + path + ' items=' + prof.order.length);
   return prof;
 }
 

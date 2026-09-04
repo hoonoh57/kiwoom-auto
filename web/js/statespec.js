@@ -68,32 +68,40 @@ export function restore(scope, ctx, data) {
 
 export const pathOf = (scope, ctx) => SPEC[scope].path(ctx);
 
+const paneLabel = (paneId) => {
+  const c = addons.catalog().find((x) => x.pane === paneId);
+  return (c && c.label) || paneId;
+};
+const clampH = (value, fallback) => {
+  const h = Number(value);
+  return Number.isFinite(h) ? Math.min(600, Math.max(50, h)) : fallback;
+};
+
 export function defaultWindow(tf) {
-  const prof = { panes: [], order: [], items: {},
-                 view: { barSpacing: TF_BARSPACING[tf] || 8, autoScale: true },
-                 ui: { open: { main: true } } };
-  for (const c of addons.catalog()) {
-    if (!c.auto) continue;
-    const id = c.kind + '1';
-    const props = { ...addons.defaults(c.kind), paneId: c.pane || 'main' };
-    prof.items[id] = { kind: c.kind, enabled: true, visible: true, props };
-    prof.order.push(id);
-  }
-  return reconcile(prof);
+  return reconcile({ view: { barSpacing: TF_BARSPACING[tf] || 8, autoScale: true },
+                     ui: { open: { main: true } } });
 }
 
 export function reconcile(prof) {
+  prof = (prof && typeof prof === 'object') ? prof : {};
   const cat = new Map(addons.catalog().map((c) => [c.kind, c]));
-  if (!prof.view) {
-    prof.view = { barSpacing: prof.barSpacing === undefined ? 8 : prof.barSpacing,
-                  autoScale: prof.scale ? prof.scale.autoScale !== false : true };
-  }
+  const v = prof.view || {};
+  prof.view = {
+    barSpacing: v.barSpacing > 0 ? v.barSpacing
+              : (prof.barSpacing > 0 ? prof.barSpacing : 8),
+    autoScale: v.autoScale !== undefined ? v.autoScale !== false
+             : (prof.scale ? prof.scale.autoScale !== false : true),
+  };
+  delete prof.barSpacing;
+  delete prof.scale;
   prof.items = prof.items || {};
   prof.order = (prof.order || []).filter((id) => prof.items[id]);
   for (const id of Object.keys(prof.items)) {
     const it = prof.items[id];
-    const c = cat.get(it.kind);
+    const c = it && cat.get(it.kind);
     if (!c) { delete prof.items[id]; continue; }
+    it.enabled = it.enabled !== false;
+    it.visible = it.visible !== false;
     it.props = it.props || {};
     it.props.paneId = it.props.paneId || c.pane || 'main';
     for (const f of c.schema) {
@@ -101,15 +109,34 @@ export function reconcile(prof) {
     }
     if (!prof.order.includes(id)) prof.order.push(id);
   }
-  const need = new Set(Object.values(prof.items).map((i) => i.props.paneId));
-  need.add('main');
-  const have = new Map((prof.panes || []).map((p) => [p.id, p]));
-  prof.panes = [...need].map((pid) => have.get(pid) || {
+  prof.order = prof.order.filter((id) => prof.items[id]);
+
+  if (!prof.order.length) {
+    for (const c of addons.catalog()) {
+      if (!c.auto) continue;
+      const id = c.kind + '1';
+      prof.items[id] = { kind: c.kind, enabled: true, visible: true,
+                         props: { ...addons.defaults(c.kind), paneId: c.pane || 'main' } };
+      prof.order.push(id);
+    }
+  }
+
+  const used = new Set(prof.order.map((id) => prof.items[id].props.paneId));
+  used.add('main');
+  const have = new Map((prof.panes || []).filter((p) => p && p.id).map((p) => [p.id, p]));
+  const seq = [];
+  const push = (pid) => { if (used.has(pid) && !seq.includes(pid)) seq.push(pid); };
+  push('main');
+  for (const id of prof.order) push(prof.items[id].props.paneId);
+  for (const p of (prof.panes || [])) if (p && p.id) push(p.id);
+  prof.panes = seq.map((pid) => ({
     id: pid,
-    h: pid === 'main' ? 300 : (cat.get([...cat.keys()].find((k) => cat.get(k).pane === pid)) || {}).paneH || 95,
-    label: (cat.get([...cat.keys()].find((k) => cat.get(k).pane === pid)) || {}).label || pid,
-  });
-  prof.panes.sort((a, b) => (a.id === 'main' ? -1 : b.id === 'main' ? 1 : 0));
+    label: paneLabel(pid),
+    h: clampH((have.get(pid) || {}).h, paneDefaultH(pid)),
+  }));
+
+  prof.ui = prof.ui || {};
+  prof.ui.open = prof.ui.open || { main: true };
   return prof;
 }
 

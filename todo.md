@@ -1,46 +1,20 @@
-# todo.md — 한 일 / 할 일
-이 파일은 유일한 가변 인수인계 파일이다. 섹션은 **정확히 두 개**만 유지한다.
-운영 규칙:
-```
-현재 좌표(branch/SHA/게이트/설계도 상태)는 '할 일' 첫 블록에 고정 위치로 둔다.
-'한 일'은 최근 3 tranche만 유지한다. 그 이전은 1줄 요약으로 접거나 git log로 밀어낸다.
-각 항목은 '무엇을 확정했는가 + 왜'로 1~2줄 압축한다. 서사·경위 설명을 쌓지 않는다.
-RULE_CONFLICT / NO_PROGRESS / DESIGN_REQUIRED / REMEDIATION_REQUIRED는 '할 일' 최상단.
-'재시도 금지' 목록은 반드시 유지한다. 이미 실패한 우회책의 재제안을 막는 유일한 장치다.
-설계도 상태가 APPROVED가 아니면 '다음 작업'에 코드 항목을 넣지 않는다.
-tranche 종료 시 새 문서를 만들지 않고 이 파일만 갱신한다.
-```
+# todo.md
+
+## 현재 좌표
+branch : main commit : d6b4d383631d7e83e6792277e51106b05f81faf2 schema : 코드 4 / 설계 5(DRAFT) 게이트 : A2.5 = DRAFT. 제품 코드 착수 금지
+
+Copy
 ## 한 일
-- [tranche N] <확정 사항> — 근거: <통과 테스트 ID / 확정 설계 ID / 삭제한 위반 / 판정>
-- [tranche N-1] <확정 사항> — 근거: <...>
-- [tranche N-2] <확정 사항> — 근거: <...>
-- (이전) <한 줄 요약>
+[x] store.py 경로 트리 STATE 도입, /api/node 3개로 통합 (A1.4 준수) [x] VD별 tf 독립 저장/복원 (vds/{vd}.tf) — 검증 완료 [x] 프로필 미존재 조합 백지 결함 원인 규명: switchTo가 생성 경로를 타지 않음 [x] 키움 영웅문4 가상화면/자식폼/화면검색 조사 — design.md 1절에 출처 기록 [x] design.md 초안 작성 (schemaVersion 5, 자식폼 도입)
+
+Copy
 ## 할 일
-**현재 좌표**
-```
-repo/branch      : <값>
-기준 SHA         : <값>
-서브모듈/의존 핀 : <값>
-설계도 상태      : <DRAFT | REVIEWED | APPROVED>   승인일: <값>
-OPEN 항목 수     : <N>   (0이 아니면 코드 금지)
-미완성 D 항목    : <D1..D14 중 비어 있는 것>
-미구현 설계 ID   : <목록>
-초과 구현 목록   : <설계에 없는 공개 동작>
-게이트 상태      : design <PASS/FAIL> / static <PASS/FAIL> / semantic <PASS/FAIL>
-                   전체 <PASS | REMEDIATION_REQUIRED>
-미해결 플래그    : <DESIGN_REQUIRED | RULE_CONFLICT | NO_PROGRESS | 없음>
-```
-**재시도 금지** (이미 결함으로 판정된 접근)
-```
-- <접근> : <실패 이유 1줄> : <위반 불변식 ID>
-```
-**다음 작업** (순서대로, 하나씩)
-```
-0. (설계 미완 시) 설계 tranche — 목표: <닫을 OPEN 항목 / 확정할 D 항목>
-1. <단일 boundary change 1개> — 설계 ID: <값> — 통과 조건: <테스트 ID>
-2. <...>
-```
-**심사 대기 목록** (구조 결함 의심 지점)
-```
-- <모듈/함수> : <의심 패턴> : <검증할 불변식 ID>
-```
+[ ] D-Q1~Q4 사용자 결정 (design.md 14절) [ ] design.md APPROVED 전환 후 T12 수행 [ ] 구현 tranche 1: deskspec.js + 마이그레이션 4→5 (코드 없이 선행 불가) [ ] 구현 tranche 2: frame.js(ENGINE) + desk.js(BRIDGE) [ ] 구현 tranche 3: screens.js + screens/chart.js (기존 차트 이식) [ ] 구현 tranche 4: 타이틀바 VD 버튼 / 화면검색 콤보 / 퀵툴바 [ ] 구현 tranche 5: screens/quote.js, order.js, log.js [ ] check.py를 start.bat 선행 게이트로 연결
+
+Copy
+## 미해결 결함 (증거)
+D-A. profiles 중 items 0 인 키 8건. 구버전 switchTo 잔재. 증거: vd2|000660|1m ... vd4|005380|30m, panes=[('main',776)] 처리: design.md D10 마이그레이션에서 폐기 (Q4 승인 대기) D-B. vd1|005930|1m 의 macd h=187 / rsi h=182. 과거 피드백 루프 잔재. 처리: D9 비율 정규화 저장으로 재발 차단. 값은 사용자 재조정 시 정리 D-C. 페인 높이를 렌더 픽셀 그대로 되써 컨테이너 크기에 따라 표류(776px). 처리: D9
+
+Copy
+## 이탈 기록 (A-GUIDE)
+이전 세션에서 A2.5 미승인 상태로 statespec.js/app.js 패치를 제시했다. 결과: 오염 레코드 판정 누락(빈 레코드 조건을 order.length가 아닌 keys로 잡음). 재발 방지: 구현 tranche는 design.md APPROVED 이후에만 시작한다.

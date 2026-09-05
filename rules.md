@@ -588,7 +588,7 @@ Part A의 추상 용어를 이 프로젝트의 실체에 1:1로 매핑한다. **
 B1  ENGINE 위치        : web/js/core.js(차트 primitive), web/js/frame.js(자식폼 primitive)
 B2  ADDON 위치         : web/js/addons.js(차트 series kind), web/js/screens/<kind>.js(screen kind)
 B3  BRIDGE 위치        : web/js/runtime.js(series diff), web/js/desk.js(form diff)
-B4  STATE 위치/스키마  : state/workspace.json / schemaVersion 5
+B4  STATE 위치/스키마  : state/workspace.json / schemaVersion 6
 B5  primitive 어휘     : chart, series, priceLine, markers, pane, frame, contentHost, rect,
                          zIndex, visibility, titleBar, drag, resize, minimize, maximize, destroy
 B6  금지 어휘          : candles, ma, volume, macd, rsi, amount, signals, chartScreen,
@@ -604,17 +604,19 @@ B10 static gate 실행   : 현재 `.venv\Scripts\python.exe check.py`;
 B11 semantic gate 실행 : 목표 `.venv\Scripts\python.exe check.py --semantic` (현재 미구현, T1~T13)
 B12 acceptance 절차    : start.bat 실행 후 상단 1~8 클릭/Ctrl+1~8, VD별 폼 격리,
                          모든 VD 표시의 동일 위치, 전체/현재 VD 종목연동을 실제 브라우저에서 확인
-B13 frozen 경계        : app/store.py의 generic 경로 CRUD, app/main.py의 /api/node 계약,
-                         web/vendor/lwc.standalone.js
+B13 frozen 경계        : app/store.py의 기존 generic 경로 CRUD와 app/main.py의 /api/node 계약은 유지;
+                         generic 복구용 GET /api/state/recovery,
+                         GET /api/state/recovery/raw, PUT /api/state/recovery 추가만 허용;
+                         web/vendor/lwc.standalone.js는 변경 금지
 B14 design.md 위치     : design.md
 B15 설계 ID 규칙       : D<1~14>.<영역>.<항목>
 B16 추적성 표기 방식   : 공개 함수 바로 위 주석 `// Design: D<번호>.<영역>.<항목>`;
                          Python은 `# Design: ...`, 테스트명은 설계 ID를 포함
 B17 T12 수행 방법      : 코드를 보지 않은 새 세션이 design.md만 읽고 공개 시그니처와
                          D11 trace를 재작성한 뒤 check.py --t12가 원본과 비교
-B18 canonical fixture  : 목표 state/workspace.v5.fixture.json (현재 미생성)
+B18 canonical fixture  : state/workspace.v6.fixture.json
 B19 골든 trace 위치    : 현재 design.md D11;
-                         목표 tests/fixtures/desk-traces.json (현재 미생성)
+                         목표 tests/fixtures/desk-traces.v6.json (현재 미생성)
 B20 승인 기록 위치     : todo.md `할 일 > 현재 좌표`의 `설계 상태` 필드
 B21 검증 실행 절차     : git status --short --branch -> git pull --ff-only ->
                          .venv\Scripts\python.exe check.py -> 최종 상태 1줄

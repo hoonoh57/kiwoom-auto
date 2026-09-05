@@ -1,101 +1,101 @@
 {
-  "schemaVersion": 6,
-  "globalOn": true,
-  "activeVd": "vd1",
-  "symLink": "vd",
-  "layout": {
-    "sidebarW": 300,
-    "snapPx": 8
+ "activeVd": "vd1",
+ "forms": {
+  "f1": {
+   "allVd": false,
+   "body": {
+    "items": {},
+    "order": [],
+    "panes": [],
+    "ui": {},
+    "view": {}
+   },
+   "code": "005930",
+   "link": "follow",
+   "prevRect": {
+    "h": 520,
+    "w": 820,
+    "x": 12,
+    "y": 12
+   },
+   "rect": {
+    "h": 520,
+    "w": 820,
+    "x": 12,
+    "y": 12
+   },
+   "screen": "chart",
+   "shareGroup": "all",
+   "tf": "1m",
+   "title": null,
+   "vd": "vd1",
+   "visible": true,
+   "winState": "normal"
+  }
+ },
+ "globalOn": true,
+ "layout": {
+  "sidebarW": 300,
+  "snapPx": 8
+ },
+ "schemaVersion": 6,
+ "seq": {
+  "form": 2,
+  "snapshot": 1
+ },
+ "snapshots": {},
+ "symLink": "vd",
+ "undo": null,
+ "vds": {
+  "vd1": {
+   "enabled": true,
+   "label": "1",
+   "slot": 1,
+   "z": [
+    "f1"
+   ]
   },
-  "seq": {
-    "form": 2,
-    "snapshot": 1
+  "vd2": {
+   "enabled": false,
+   "label": "2",
+   "slot": 2,
+   "z": []
   },
-  "vds": {
-    "vd1": {
-      "slot": 1,
-      "label": "1",
-      "enabled": true,
-      "z": [
-        "f1"
-      ]
-    },
-    "vd2": {
-      "slot": 2,
-      "label": "2",
-      "enabled": false,
-      "z": []
-    },
-    "vd3": {
-      "slot": 3,
-      "label": "3",
-      "enabled": false,
-      "z": []
-    },
-    "vd4": {
-      "slot": 4,
-      "label": "4",
-      "enabled": false,
-      "z": []
-    },
-    "vd5": {
-      "slot": 5,
-      "label": "5",
-      "enabled": false,
-      "z": []
-    },
-    "vd6": {
-      "slot": 6,
-      "label": "6",
-      "enabled": false,
-      "z": []
-    },
-    "vd7": {
-      "slot": 7,
-      "label": "7",
-      "enabled": false,
-      "z": []
-    },
-    "vd8": {
-      "slot": 8,
-      "label": "8",
-      "enabled": false,
-      "z": []
-    }
+  "vd3": {
+   "enabled": false,
+   "label": "3",
+   "slot": 3,
+   "z": []
   },
-  "forms": {
-    "f1": {
-      "screen": "chart",
-      "vd": "vd1",
-      "allVd": false,
-      "visible": true,
-      "title": null,
-      "code": "005930",
-      "tf": "1m",
-      "link": "follow",
-      "shareGroup": "all",
-      "rect": {
-        "x": 12,
-        "y": 12,
-        "w": 820,
-        "h": 520
-      },
-      "winState": "normal",
-      "prevRect": {
-        "x": 12,
-        "y": 12,
-        "w": 820,
-        "h": 520
-      },
-      "body": {
-        "panes": [],
-        "items": {},
-        "order": [],
-        "view": {},
-        "ui": {}
-      }
-    }
+  "vd4": {
+   "enabled": false,
+   "label": "4",
+   "slot": 4,
+   "z": []
   },
-  "snapshots": {},
-  "undo": null
+  "vd5": {
+   "enabled": false,
+   "label": "5",
+   "slot": 5,
+   "z": []
+  },
+  "vd6": {
+   "enabled": false,
+   "label": "6",
+   "slot": 6,
+   "z": []
+  },
+  "vd7": {
+   "enabled": false,
+   "label": "7",
+   "slot": 7,
+   "z": []
+  },
+  "vd8": {
+   "enabled": false,
+   "label": "8",
+   "slot": 8,
+   "z": []
+  }
+ }
 }

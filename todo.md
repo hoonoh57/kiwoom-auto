@@ -50,14 +50,14 @@ REMEDIATION_REQUIRED
 branch       : main
 제품 기준선  : 95d97a8 docs: approve multi-vd workspace v6 design
 문서 tranche : 95d97a8 r6.2 APPROVED
-worktree     : Tranche 2 BRIDGE 정합성 구현
+worktree     : Tranche 3 ENGINE frame 구현·자동 검증 완료
 현재 STATE   : state/workspace.json schemaVersion 5
 목표 STATE   : schemaVersion 6
 설계 상태    : APPROVED (r6.2, 전체 D1~D14)
 OPEN         : 0
 게이트       : C1 완료, C2 완료, C3(T12) 완료, C4(APPROVED) 완료
 모델 운용    : gpt-5.6-sol high 유지; deterministic 저위험 구현 진입 전에 low 전환 가능 시점 고지
-다음 설계 ID : D7.v6.desired-diff, D8.v6.*, D9.v6.*, D11.v6.event-shape
+다음 설계 ID : D5.v6.chart-range, D5.v6.market-cache, D5.v6.candles-compare
 ```
 
 ### Gate 0 — 코드 착수 전
@@ -86,11 +86,13 @@ OPEN         : 0
 
 ### Tranche 3 — ENGINE frame [D6.v6.frame-api, D7.v6.z-list]
 
-- [ ] `frame.js` 공개 primitive, size observer, destroyed-handle 오류를 계약에 맞춘다.
-- [ ] `snapRect`의 축별 후보·tie-break·할당 상한을 구현한다.
-- [ ] pointer 이벤트 객체를 전달하고 Bridge가 trusted 입력만 raise하게 한다.
-- [ ] z·위치 변경 시 contentSize callback 0, 크기 변경 시 batch당 callback 최대 1 테스트를 통과한다.
+- [x] `frame.js` 공개 primitive, size observer, destroyed-handle 오류를 계약에 맞춘다.
+- [x] `snapRect`의 축별 후보·tie-break·할당 상한을 구현한다.
+- [x] pointer 이벤트 객체를 전달하고 Bridge가 trusted 입력만 raise하게 한다.
+- [x] z·위치 변경 시 contentSize callback 0, 크기 변경 시 batch당 callback 최대 1 테스트를 통과한다.
 - [ ] green 후 해당 tranche만 커밋하고 push한다.
+
+- 검증: `tests/frame-v6.mjs`, `tests/desk-bridge-v6.mjs`, 기존 STATE/projection/candles 테스트와 `check.py` PASS. 실제 브라우저 조작감은 Tranche 7에서 확인한다.
 
 ### Tranche 4 — ADDON chart 안정화 [D5.v6.chart-range, D5.v6.market-cache, D5.v6.candles-compare]
 

@@ -21,8 +21,9 @@ function harness({ throwRemove = false } = {}) {
   const calls = [];
   const logs = [];
   const recorded = [];
+  const inputs = [], pointers = new Map();
   const frame = {
-    createFrame: (_host, id, rect, on) => ({ id, rect, on, body: { id } }),
+    createFrame: (_host, id, rect, on) => { pointers.set(id, on); return { id, rect, on, body: { id } }; },
     setFrameRect: (h, value) => { h.rect = value; calls.push(['setFrameRect', h.id]); },
     setFrameState: (h, value) => { h.state = value; calls.push(['setFrameState', h.id]); },
     setFrameZ: (h, value) => { h.z = value; calls.push(['setFrameZ', h.id, value]); },
@@ -40,8 +41,8 @@ function harness({ throwRemove = false } = {}) {
       if (throwRemove) throw new Error('remove-failed');
     },
   };
-  const desk = createDesk({ host: {}, catalog, frame, patch: () => {}, log: (line) => logs.push(line), recorder: (e) => recorded.push(e) });
-  return { desk, calls, logs, recorded };
+  const desk = createDesk({ host: {}, catalog, frame, patch: e => inputs.push(e), log: (line) => logs.push(line), recorder: (e) => recorded.push(e) });
+  return { desk, calls, logs, recorded, inputs, pointers };
 }
 
 function item(id, order = 0, raw = vectors.P1, rect = { x: 0, y: 0, w: 100, h: 100 }, kind = 'chart') {
@@ -55,6 +56,20 @@ function item(id, order = 0, raw = vectors.P1, rect = { x: 0, y: 0, w: 100, h: 1
 const one = harness();
 let result = one.desk.apply({ mode: 'initial', items: [item('f1')], absentIds: [], order: { mode: 'rebuild', id: null } });
 assert.deepEqual(result.events, fixture.semantic.T1);
+// [D7.v6.z-list] Only trusted pointerdown requests raise.
+one.pointers.get('f1').focus({ type: 'pointerdown', isTrusted: false });
+one.pointers.get('f1').focus({ type: 'focus', isTrusted: true });
+one.pointers.get('f1').focus(undefined);
+assert.equal(one.inputs.length, 0);
+one.pointers.get('f1').focus({ type: 'pointerdown', isTrusted: true });
+assert.equal(one.inputs.length, 1);
+assert.equal(one.inputs[0].type, 'focus');
+// [D7.v6.z-list] Overflow raise rebuilds relative order with target last.
+const overflow = harness();
+overflow.desk.apply({ items: [item('f1', 1000001), item('f2', 1000002)], absentIds: [], order: { mode: 'keep' } });
+overflow.calls.length = 0;
+overflow.desk.apply({ items: [], absentIds: [], order: { mode: 'raise', id: 'f1' } });
+assert.deepEqual(overflow.calls, [['setFrameZ', 'f2', 0], ['setFrameZ', 'f1', 1]]);
 one.calls.length = 0;
 result = one.desk.apply({ mode: 'delta', items: [item('f1')], absentIds: [], order: { mode: 'keep', id: null } });
 assert.deepEqual(result.events, []);

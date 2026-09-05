@@ -88,7 +88,7 @@ export function createDesk({ host, catalog, frame, patch, log, recorder, schedul
     let frameHandle;
     try {
       frameHandle = call(frame, 'createFrame', host, item.id, geo.rect, {
-        focus: (event) => { if (event?.isTrusted === true) send('focus', item.id, event); },
+        focus: (event) => { if (event?.isTrusted === true && event.type === 'pointerdown') send('focus', item.id, event); },
         geo: (rect) => send('geo', item.id, rect),
         min: () => send('min', item.id),
         max: () => send('max', item.id),
@@ -96,7 +96,7 @@ export function createDesk({ host, catalog, frame, patch, log, recorder, schedul
         menu: (point) => send('menu', item.id, point),
       });
       call(frame, 'setFrameTitle', frameHandle, meta.title ?? '', meta.shareGroup ?? 'all');
-      call(frame, 'setFrameState', frameHandle, geo.winState, null);
+      call(frame, 'setFrameState', frameHandle, geo.winState, { x: 0, y: 0, w: host.clientWidth, h: host.clientHeight });
       call(frame, 'setFrameVisible', frameHandle, true);
       call(frame, 'setFrameZ', frameHandle, item.order | 0);
       const context = {
@@ -157,7 +157,7 @@ export function createDesk({ host, catalog, frame, patch, log, recorder, schedul
     if (geoChanged) {
       try {
         call(frame, 'setFrameRect', cur.frameHandle, geo.rect);
-        call(frame, 'setFrameState', cur.frameHandle, geo.winState, null);
+        call(frame, 'setFrameState', cur.frameHandle, geo.winState, { x: 0, y: 0, w: host.clientWidth, h: host.clientHeight });
       } catch (error) { report('geometry', item.id, error); }
       cur.geoHash = geoHash;
     }
@@ -190,10 +190,27 @@ export function createDesk({ host, catalog, frame, patch, log, recorder, schedul
     if (order.mode === 'raise') {
       const cur = live.get(order.id);
       if (cur) {
-        const max = Math.max(-1, ...[...live.values()].map((entry) => entry.zIdx));
-        try { call(frame, 'setFrameZ', cur.frameHandle, max + 1); } catch (error) { report('z', order.id, error); }
-        cur.zIdx = max + 1;
-        cur.order = max + 1;
+        let maxZ = -1;
+        for (const entry of live.values()) maxZ = Math.max(maxZ, entry.zIdx);
+        if (maxZ > 1000000) {
+          const ordered = [...live.entries()].sort((a, b) => a[1].zIdx - b[1].zIdx || byId(a[0], b[0]));
+          const targetIndex = ordered.findIndex(([id]) => id === order.id);
+          ordered.push(...ordered.splice(targetIndex, 1));
+          ordered.forEach(([id, entry], index) => {
+            if (entry.zIdx !== index) {
+              try { call(frame, 'setFrameZ', entry.frameHandle, index); } catch (error) { report('z', id, error); }
+              if (id !== order.id && !events.some(event => event.id === id && event.op !== 'remove')) {
+                events.push(record('update', id, entry.kind, entry.propsHash));
+              }
+            }
+            entry.zIdx = index; entry.order = index;
+          });
+          maxZ = ordered.length - 1;
+        } else {
+          try { call(frame, 'setFrameZ', cur.frameHandle, maxZ + 1); } catch (error) { report('z', order.id, error); }
+          cur.zIdx = ++maxZ;
+          cur.order = maxZ;
+        }
         if (!events.some((event) => event.id === order.id && event.op !== 'remove')) {
           events.push(record('update', order.id, cur.kind, cur.propsHash));
         }

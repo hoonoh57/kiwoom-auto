@@ -3,7 +3,7 @@
 import * as ds from './deskspec.js';
 import * as screens from './screens.js';
 import { createDesk } from './desk.js';
-import { createFrame as createFrameEngine } from './frame.js';
+import * as frameApi from './frame.js';
 import * as bus from './bus.js';
 
 const $ = (s) => document.querySelector(s);
@@ -138,31 +138,6 @@ function screenCtx(id) {
     setCode: (code) => setFormCode(id, code), log: bus.push,
   };
 }
-
-const frameApi = {
-  createFrame(host, id, rect, on) {
-    const form = st.forms[id];
-    const inner = createFrameEngine(host, {
-      minSize: form ? screens.spec.meta(form.screen).minSize : undefined,
-      on: {
-        focus: on.focus, geo: on.geo, min: on.min, max: on.max, close: on.close,
-        menu: (x, y) => on.menu({ x, y }),
-      },
-    });
-    inner.setRect(rect);
-    return { id, inner };
-  },
-  setFrameRect: (handle, rect) => handle.inner.setRect(rect),
-  setFrameState: (handle, state) => handle.inner.setState(state),
-  setFrameZ: (handle, z) => handle.inner.setZ(z),
-  setFrameVisible: (handle, visible) => { handle.inner.el.style.display = visible ? '' : 'none'; },
-  setFrameTitle(handle) {
-    const form = st.forms[handle.id];
-    if (form) handle.inner.setTitle(screens.spec.title(form), screens.spec.sub(form));
-  },
-  getContentHost: (handle) => handle.inner.body,
-  destroyFrame: (handle) => handle.inner.destroy(),
-};
 
 const screenBridge = {
   normalize: (_kind, raw) => structuredClone(raw),

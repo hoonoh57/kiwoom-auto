@@ -2,6 +2,8 @@
 
 ## 한 일
 
+- [x] 브라우저 접속·실행·종료 스크립트와 기본 APP_PORT를 8777에서 8077로 변경했다.
+
 - [x] 키움 HTS형 가상화면과 경쟁 UX 비교 결과를 v6 목표 범위로 변환했다.
 - [x] 기존 동적 VD ID·order 설계와 실제 고유 이름 결함을 architecture remediation으로 분류했다.
 - [x] r6.0에서 `design.md`를 schemaVersion 6 기준 D1~D14 설계도로 교체하고 당시 OPEN 0으로 결정했다.
@@ -15,6 +17,19 @@
 - [x] r6.0 커밋에서 `design.md`와 `todo.md`의 기준 commit·schemaVersion·설계 상태·OPEN·Gate·Tranche 순서를 동기화 검증했다.
 
 ## 할 일
+
+### 우선 작업 — 실제 키움 REST 전환 (2026-09-06)
+
+- 참조 저장소는 `hoonoh57/kiwoom-desk`로 정정됨. server/index.ts, src/api/KiwoomClient.ts, src/api/trSchema.ts 검토 완료.
+- 현재 자체 MockAdapter와 출처 없는 봉 캐시 때문에 모드만 변경하면 mock 데이터가 남을 수 있음.
+- [x] `design.md` REST 전환 범위는 사용자 `모두 진행`으로 승인되어 구현 완료.
+- [x] 로컬 인증 설정이 구성된 것을 재확인하고 키움 모의투자 서버의 실제 읽기 전용 조회를 검증했다. 키 값은 출력·커밋하지 않았다.
+- [x] 자체 MockAdapter 제거, REST 인증·TR·연속 조회·KST 변환, source별 v2 캐시 격리, 설정 상태 표시 완료.
+- [x] 실제 조회: 현재가·잔고 성공, tick/1m/5m/30m/1d/1w 각 600봉, 1M 501봉 성공. 요청 간격 1.2초에서 연속 조회 제한 해소. 외부 주문 요청 0건.
+- [x] Python 13개 테스트, 기존 JS 5개 검증 스크립트, check.py, diff 검사 통과.
+- [ ] 브라우저 시각 검증: 연결 가능한 브라우저 없음. 8077 health 및 데이터 API 응답만 확인.
+- 다음: REST 변경 커밋·push 후 Tranche 4 재개. 전체 ARCH PASS는 아직 아님.
+
 
 REMEDIATION_REQUIRED
 

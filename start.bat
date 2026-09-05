@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 set "HOST=127.0.0.1"
-set "PORT=8777"
+set "PORT=8077"
 set "PY=.venv\Scripts\python.exe"
 
 echo [1/5] stop previous server

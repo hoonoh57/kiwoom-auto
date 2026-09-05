@@ -1,4 +1,5 @@
 import time
+import re
 from urllib.parse import unquote
 
 from fastapi import FastAPI, HTTPException, Response
@@ -12,6 +13,8 @@ app = FastAPI(title="kiwoom-auto")
 
 
 def _bars(code, tf, force=False):
+    if not re.fullmatch(r"[0-9]{6}", code) or tf not in config.TFSEC:
+        raise HTTPException(400, "invalid code/tf")
     rec = data.load(code, tf)
     if force or not data.is_fresh(rec):
         try:
@@ -28,10 +31,13 @@ def _bars(code, tf, force=False):
     return rec
 
 
+# Design: D10.rest-api.errors
 @app.get("/api/health")
 def health():
     return {"ok": True, "mode": kiwoom.get().mode, "paper": config.USE_PAPER,
-            "base": config.BASE, "tf": list(config.TFSEC), "tfLabel": config.TFLABEL}
+            "configured": bool(config.APPKEY and config.SECRETKEY),
+            "error": None if config.APPKEY and config.SECRETKEY else "키움 API 인증 설정 필요",
+            "source": config.SOURCE, "base": config.BASE, "tf": list(config.TFSEC), "tfLabel": config.TFLABEL}
 
 
 @app.get("/api/node")
@@ -122,6 +128,8 @@ class Order(BaseModel):
 def post_order(o: Order):
     if o.side not in ("BUY", "SELL") or o.qty <= 0:
         raise HTTPException(400, "side/qty 오류")
+    if not re.fullmatch(r"[0-9]{6}", o.code) or o.tf not in config.TFSEC:
+        raise HTTPException(400, "invalid code/tf")
     rec = data.load(o.code, o.tf)
     age = int(time.time()) - int(rec.get("fetchedAt", 0))
     if not rec["bars"] or age > config.STALE_BLOCK_SEC:

@@ -1,180 +1,188 @@
-import hashlib
+# Design: D5.rest-api.contract, D10.rest-api.errors
 import math
+import re
+import threading
 import time
+from datetime import datetime, timedelta, timezone
 
 import httpx
-
 from . import config
 
+KST = timezone(timedelta(hours=9))
+CHARTS = {
+    'tick': ('ka10079', 'stk_tic_chart_qry'),
+    '1m': ('ka10080', 'stk_min_pole_chart_qry'),
+    '5m': ('ka10080', 'stk_min_pole_chart_qry'),
+    '30m': ('ka10080', 'stk_min_pole_chart_qry'),
+    '1d': ('ka10081', 'stk_dt_pole_chart_qry'),
+    '1w': ('ka10082', 'stk_stk_pole_chart_qry'),
+    '1M': ('ka10083', 'stk_mth_pole_chart_qry'),
+}
 
+# Design: D10.rest-api.errors
 class KiwoomError(Exception):
     pass
 
 
-def _noise(*parts):
-    h = hashlib.sha1("|".join(str(p) for p in parts).encode()).digest()
-    return (int.from_bytes(h[:4], "big") / 0xFFFFFFFF) * 2 - 1
+def _number(row, key, unsigned=False):
+    try:
+        value = float(str(row[key]).strip().replace(',', ''))
+        if not math.isfinite(value):
+            raise ValueError()
+        return abs(value) if unsigned else value
+    except (KeyError, TypeError, ValueError):
+        raise KiwoomError(f'Invalid numeric field: {key}') from None
 
 
-class MockAdapter:
-    """버킷 인덱스의 순수 함수. 재생성 시 과거 봉이 흔들리지 않음."""
-    mode = "mock"
-
-    def _base(self, code):
-        return 20000 + (int(hashlib.sha1(code.encode()).hexdigest()[:6], 16) % 130000)
-
-    def _bar(self, code, tf, k):
-        base = self._base(code)
-        ph = _noise(code, tf) * 3.14
-        drift = 0.060 * math.sin(k / 37.0 + ph) + 0.030 * math.sin(k / 11.0 + ph * 2) \
-                + 0.012 * math.sin(k / 3.0 + ph * 3)
-        c = base * (1 + drift + 0.004 * _noise(code, tf, k))
-        o = base * (1 + drift + 0.004 * _noise(code, tf, k - 1))
-        hi = max(o, c) * (1 + 0.0035 * abs(_noise(code, tf, k, "h")))
-        lo = min(o, c) * (1 - 0.0035 * abs(_noise(code, tf, k, "l")))
-        vol = int(120000 + 90000 * abs(_noise(code, tf, k, "v")))
-        r = 1 if base > 50000 else 10
-        f = lambda x: round(x / r) * r
-        return {"time": 0, "open": f(o), "high": f(hi), "low": f(lo),
-                "close": f(c), "volume": vol}
-
-    def candles(self, code, tf, count=None, since=0):
-        count = count or config.FETCH_COUNT
-        step = config.TFSEC[tf] or 3
-        end = config.align(int(time.time()), tf) if config.TFSEC[tf] else int(time.time())
-        k_end = end // step
-        rows = []
-        for i in range(count - 1, -1, -1):
-            k = k_end - i
-            t = k * step
-            if since and t <= since:
-                continue
-            b = self._bar(code, tf, k)
-            b["time"] = t
-            rows.append(b)
-        return rows
-
-    def quote(self, code):
-        rows = self.candles(code, "1m", count=2)
-        cur, prev = rows[-1], rows[0]
-        chg = cur["close"] - prev["close"]
-        return {"code": code, "price": cur["close"], "change": chg,
-                "rate": round(chg / prev["close"] * 100, 2), "volume": cur["volume"]}
-
-    def order(self, code, side, qty, price):
-        return {"ok": True, "orderNo": f"MOCK{int(time.time()) % 1000000:06d}",
-                "code": code, "side": side, "qty": qty, "price": price, "mode": "mock"}
-
-    def balance(self):
-        return {"cash": 10000000, "eval": 0, "pnl": 0, "positions": [], "mode": "mock"}
+def _stamp(value):
+    try:
+        text = str(value)
+        fmt = '%Y%m%d%H%M%S' if len(text) == 14 else '%Y%m%d'
+        return int(datetime.strptime(text, fmt).replace(tzinfo=KST).timestamp())
+    except (TypeError, ValueError):
+        raise KiwoomError('Invalid KST timestamp') from None
 
 
+def _symbol(code):
+    if not re.fullmatch(r'[0-9]{6}', code):
+        raise KiwoomError('Invalid stock code')
+
+
+# Design: D5.rest-api.contract
 class LiveAdapter:
-    mode = "live"
+    mode = 'live'
 
     def __init__(self):
-        if not (config.APPKEY and config.SECRETKEY):
-            raise KiwoomError("APPKEY/SECRETKEY 미설정")
         self._tok = None
         self._exp = 0
+        self._lock = threading.RLock()
+        self._next = 0
+
+    def _post(self, path, **kwargs):
+        delay = self._next - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
+        self._next = time.monotonic() + 1.2
+        try:
+            response = httpx.post(config.BASE + path, timeout=15, **kwargs)
+        except httpx.HTTPError:
+            raise KiwoomError('Kiwoom connection failed') from None
+        try:
+            data = response.json()
+        except ValueError:
+            raise KiwoomError(f'Kiwoom non-JSON response (HTTP {response.status_code})') from None
+        if not isinstance(data, dict):
+            raise KiwoomError('Invalid Kiwoom response object')
+        return response, data
 
     def _token(self):
         if self._tok and time.time() < self._exp - 60:
             return self._tok
-        r = httpx.post(config.BASE + config.EP["token"], timeout=10,
-                       json={"grant_type": "client_credentials",
-                             "appkey": config.APPKEY, "secretkey": config.SECRETKEY})
-        r.raise_for_status()
-        d = r.json()
-        tok = d.get("token") or d.get("access_token")
-        if not tok:
-            raise KiwoomError(f"token 응답 파싱 실패: {list(d)[:6]}")
-        self._tok = tok
-        self._exp = time.time() + int(d.get("expires_in", 3600) or 3600)
-        return tok
+        if not (config.APPKEY and config.SECRETKEY):
+            raise KiwoomError('KIWOOM_APPKEY / KIWOOM_SECRETKEY 미설정')
+        r, d = self._post('/oauth2/token', json={
+            'grant_type': 'client_credentials', 'appkey': config.APPKEY, 'secretkey': config.SECRETKEY})
+        if not r.is_success or str(d.get('return_code', 0)) != '0' or not d.get('token'):
+            raise KiwoomError(f"Kiwoom token rejected (HTTP {r.status_code}, code {d.get('return_code')})")
+        self._exp = _stamp(d.get('expires_dt'))
+        self._tok = d['token']
+        return self._tok
 
-    def _call(self, ep, trid, body):
-        h = {"authorization": f"Bearer {self._token()}", "api-id": trid,
-             "cont-yn": "N", "next-key": "", "Content-Type": "application/json;charset=UTF-8"}
-        r = httpx.post(config.BASE + ep, headers=h, json=body, timeout=15)
-        r.raise_for_status()
-        d = r.json()
-        if str(d.get("return_code", "0")) not in ("0", "000000"):
-            raise KiwoomError(f"{trid}: {d.get('return_msg')}")
-        return d
+    def _call(self, ep, trid, body, cont='N', key='', retry=True):
+        with self._lock:
+            for attempt in range(2 if retry else 1):
+                token = self._token()
+                r, d = self._post(ep, headers={
+                    'authorization': f'Bearer {token}', 'api-id': trid,
+                    'cont-yn': cont, 'next-key': key,
+                    'Content-Type': 'application/json;charset=UTF-8'}, json=body)
+                rc = str(d.get('return_code', 'missing'))
+                if (r.status_code == 401 or rc == '8005') and retry and attempt == 0:
+                    self._tok = None
+                    continue
+                if not r.is_success or rc not in ('0', '000000'):
+                    raise KiwoomError(f'{trid}: HTTP {r.status_code}, Kiwoom code {rc}')
+                return d, r.headers.get('cont-yn', 'N'), r.headers.get('next-key', '')
 
+    def _pages(self, trid, body, list_key, ep, count=None, since=0):
+        cont, key = 'N', ''
+        seen = set()
+        rows = []
+        for _ in range(20):
+            d, cont, next_key = self._call(ep, trid, body, cont, key)
+            batch = d.get(list_key)
+            if not isinstance(batch, list):
+                raise KiwoomError(f'{trid}: missing array {list_key}')
+            rows.extend(batch)
+            if count is not None:
+                times = {_stamp(r.get('cntr_tm') or r.get('dt')) for r in rows}
+                if len(times) >= count or (since and any(t <= since for t in times)):
+                    return d, rows
+            if cont != 'Y' or not next_key:
+                return d, rows
+            if next_key in seen:
+                raise KiwoomError(f'{trid}: repeated continuation key')
+            seen.add(next_key)
+            key = next_key
+        raise KiwoomError(f'{trid}: pagination limit exceeded')
+
+    # Design: D5.rest-api.contract
     def candles(self, code, tf, count=None, since=0):
-        if tf == "tick":
-            trid, body = config.TRID["tick"], {"stk_cd": code, "tic_scope": "1", "upd_stkpc_tp": "1"}
-        elif tf in ("1m", "5m", "30m"):
-            trid = config.TRID["min"]
-            body = {"stk_cd": code, "tic_scope": tf.replace("m", ""), "upd_stkpc_tp": "1"}
+        _symbol(code)
+        if tf not in CHARTS:
+            raise KiwoomError('Unknown timeframe')
+        limit = min(config.MAX_BARS, max(1, count or config.FETCH_COUNT))
+        trid, list_key = CHARTS[tf]
+        body = {'stk_cd': code, 'upd_stkpc_tp': '1'}
+        if tf == 'tick' or tf.endswith('m'):
+            body['tic_scope'] = '1' if tf == 'tick' else tf[:-1]
         else:
-            trid = config.TRID[tf]
-            body = {"stk_cd": code, "base_dt": time.strftime("%Y%m%d"), "upd_stkpc_tp": "1"}
-        d = self._call(config.EP["chart"], trid, body)
-        rows = next((v for v in d.values() if isinstance(v, list)), None)
-        if rows is None:
-            raise KiwoomError("차트 배열 없음")
-        out = []
-        for r in rows:
-            t = self._ts(r, tf)
-            if t is None or (since and t <= since):
+            body['base_dt'] = datetime.now(KST).strftime('%Y%m%d')
+        _, rows = self._pages(trid, body, list_key, config.EP['chart'], limit, since)
+        out = {}
+        for row in rows:
+            ts = _stamp(row.get('cntr_tm') or row.get('dt'))
+            if ts in out or (since and ts <= since):
                 continue
-            out.append({"time": t,
-                        "open": abs(float(r.get("open_pric") or r.get("cur_prc") or 0)),
-                        "high": abs(float(r.get("high_pric") or 0)),
-                        "low": abs(float(r.get("low_pric") or 0)),
-                        "close": abs(float(r.get("cur_prc") or 0)),
-                        "volume": abs(float(r.get("trde_qty") or 0))})
-        out.sort(key=lambda x: x["time"])
-        return out
+            out[ts] = {'time': ts, 'open': _number(row, 'open_pric', True),
+                       'high': _number(row, 'high_pric', True), 'low': _number(row, 'low_pric', True),
+                       'close': _number(row, 'cur_prc', True), 'volume': _number(row, 'trde_qty', True)}
+        return [out[t] for t in sorted(out)[-limit:]]
 
-    @staticmethod
-    def _ts(r, tf):
-        s = str(r.get("cntr_tm") or r.get("dt") or "")
-        try:
-            if len(s) >= 14:
-                return int(time.mktime(time.strptime(s[:14], "%Y%m%d%H%M%S")))
-            if len(s) == 8:
-                return int(time.mktime(time.strptime(s, "%Y%m%d")))
-        except Exception:
-            return None
-        return None
-
+    # Design: D5.rest-api.contract
     def quote(self, code):
-        d = self._call(config.EP["quote"], config.TRID["quote"], {"stk_cd": code})
-        return {"code": code, "price": abs(float(d.get("cur_prc") or 0)),
-                "change": float(d.get("pred_pre") or 0),
-                "rate": float(d.get("flu_rt") or 0),
-                "volume": abs(float(d.get("trde_qty") or 0))}
+        _symbol(code)
+        d, _, _ = self._call(config.EP['quote'], 'ka10001', {'stk_cd': code})
+        return {'code': code, 'price': _number(d, 'cur_prc', True),
+                'change': _number(d, 'pred_pre'), 'rate': _number(d, 'flu_rt'),
+                'volume': _number(d, 'trde_qty', True)}
 
+    # Design: D5.rest-api.contract
     def order(self, code, side, qty, price):
-        trid = config.TRID["buy" if side == "BUY" else "sell"]
-        body = {"dmst_stex_tp": "KRX", "stk_cd": code, "ord_qty": str(qty),
-                "ord_uv": "" if price <= 0 else str(int(price)),
-                "trde_tp": "3" if price <= 0 else "0"}
-        d = self._call(config.EP["order"], trid, body)
-        return {"ok": True, "orderNo": d.get("ord_no", ""), "code": code,
-                "side": side, "qty": qty, "price": price, "mode": "live"}
+        _symbol(code)
+        if side not in ('BUY', 'SELL') or qty <= 0 or not math.isfinite(price) or price < 0:
+            raise KiwoomError('Invalid order')
+        body = {'dmst_stex_tp': 'KRX', 'stk_cd': code, 'ord_qty': str(qty),
+                'ord_uv': '' if price == 0 else str(int(price)), 'trde_tp': '3' if price == 0 else '0'}
+        d, _, _ = self._call(config.EP['order'], config.TRID['buy' if side == 'BUY' else 'sell'], body, retry=False)
+        if not d.get('ord_no'):
+            raise KiwoomError('Missing order number; verify order status before resubmitting')
+        return {'ok': True, 'orderNo': d['ord_no'], 'code': code, 'side': side,
+                'qty': qty, 'price': price, 'mode': 'live'}
 
+    # Design: D5.rest-api.contract
     def balance(self):
-        d = self._call(config.EP["balance"], config.TRID["balance"],
-                       {"qry_tp": "1", "dmst_stex_tp": "KRX"})
-        rows = next((v for v in d.values() if isinstance(v, list)), []) or []
-        return {"cash": float(d.get("entr") or 0), "eval": float(d.get("tot_evlt_amt") or 0),
-                "pnl": float(d.get("tot_evlt_pl") or 0),
-                "positions": [{"code": r.get("stk_cd"), "name": r.get("stk_nm"),
-                               "qty": float(r.get("rmnd_qty") or 0),
-                               "avg": float(r.get("pur_pric") or 0)} for r in rows],
-                "mode": "live"}
+        cash, _, _ = self._call(config.EP['balance'], 'kt00001', {'qry_tp': '3'})
+        d, rows = self._pages('kt00018', {'qry_tp': '1', 'dmst_stex_tp': 'KRX'},
+                              'acnt_evlt_remn_indv_tot', config.EP['balance'])
+        return {'cash': _number(cash, 'entr'), 'eval': _number(d, 'tot_evlt_amt'),
+                'pnl': _number(d, 'tot_evlt_pl'), 'positions': [
+                    {'code': r['stk_cd'], 'name': r['stk_nm'], 'qty': _number(r, 'rmnd_qty'),
+                     'avg': _number(r, 'pur_pric')} for r in rows], 'mode': 'live'}
 
 
-_inst = None
+_inst = LiveAdapter()
 
-
+# Design: D5.rest-api.contract
 def get():
-    global _inst
-    if _inst is None:
-        _inst = LiveAdapter() if config.MODE == "live" else MockAdapter()
     return _inst

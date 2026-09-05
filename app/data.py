@@ -1,6 +1,8 @@
+# Design: D4.rest-api.cache
 import hashlib
 import json
 import os
+import re
 import tempfile
 import time
 
@@ -8,11 +10,13 @@ from . import config
 
 
 def _path(code, tf):
-    return config.DATA_DIR / f"{code}_{tf}.json"
+    if not re.fullmatch(r"[0-9]{6}", code) or tf not in config.TFSEC:
+        raise ValueError("Invalid market cache key")
+    return config.DATA_DIR / config.SOURCE / f"{code}_{tf}.json"
 
 
 def _empty(code, tf):
-    return {"schemaVersion": 1, "code": code, "tf": tf, "bars": [],
+    return {"schemaVersion": 2, "source": config.SOURCE, "code": code, "tf": tf, "bars": [],
             "live": None, "lastTs": 0, "fetchedAt": 0, "barsHash": "0"}
 
 
@@ -33,7 +37,7 @@ def load(code, tf):
         rec = json.loads(p.read_text(encoding="utf-8"))
     except Exception:
         return _empty(code, tf)
-    if rec.get("schemaVersion") != 1 or rec.get("tf") != tf:
+    if not isinstance(rec, dict) or rec.get("schemaVersion") != 2 or rec.get("source") != config.SOURCE or rec.get("code") != code or rec.get("tf") != tf:
         return _empty(code, tf)
     rec.setdefault("live", None)
     rec.setdefault("fetchedAt", 0)
@@ -41,8 +45,8 @@ def load(code, tf):
 
 
 def save(rec):
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(config.DATA_DIR), suffix=".tmp")
+    _path(rec["code"], rec["tf"]).parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(_path(rec["code"], rec["tf"]).parent), suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             json.dump(rec, f, ensure_ascii=False, separators=(",", ":"))

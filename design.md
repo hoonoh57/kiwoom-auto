@@ -665,3 +665,48 @@ Tranche 7  전체 trace·브라우저 acceptance         D10, D11, D12
 | R29 | baseValue deferred write를 Add-on live 파생값으로 대체 | Add-on의 STATE write 요청과 BRIDGE workflow 제거 |
 | R30 | D11 T12/T13을 모호성·추적성 테스트로 복원 | A5 예약 테스트 번호와 일치 |
 | R31 | D0 항목을 D1에 흡수 | B15의 D1~D14 설계 ID 범위 준수 |
+
+
+## D1.rest-api — 실제 키움 데이터 전환 (APPROVED, 2026-09-06 사용자 모두 진행)
+
+2026-09-06 사용자 요청: `hoonoh57/kiwoom-desk`를 참조하여 자체 생성 mock 데이터를 키움 REST 응답으로 교체한 후 v6 작업을 계속한다.
+참조: 해당 저장소 `server/index.ts`, `src/api/KiwoomClient.ts`, `src/api/trSchema.ts`.
+기존 D1~D14 v6 APPROVED는 유지한다. 이 추가 범위는 설계 검토·승인 전 제품 코드에 반영하지 않는다.
+
+### D2.rest-api.boundary
+
+`app/kiwoom.py`는 외부 키움 Request/Response adapter, `app/data.py`는 파생 시장 데이터 캐시, `app/config.py`는 접속 설정이다. ENGINE/BRIDGE에는 인증·TR·재시도 정책을 넣지 않는다. 기존 `/api/node`와 workspace schemaVersion 6은 변경하지 않는다. `/api/health`와 데이터 API의 오류 표시는 UI가 소비한다.
+
+### D3.rest-api.source
+
+자체 MockAdapter와 가상 봉·현재가·잔고·주문번호 생성 경로를 제거한다. 데이터 소스는 키움 REST만 사용한다. 모의/실투자는 별도 접속 설정이며 현재 `KIWOOM_USE_PAPER=1`을 유지한다. 실투자 전환은 별도 사용자 지시 대상이다.
+기존 `KIWOOM_APPKEY`/`KIWOOM_SECRETKEY` 쌍을 우선 사용하고, 둘 다 비었을 때만 참조 저장소의 모드별 `KIWOOM_MOCK_APP_KEY`/`KIWOOM_MOCK_SECRET_KEY` 또는 `KIWOOM_REAL_APP_KEY`/`KIWOOM_REAL_SECRET_KEY` 쌍을 사용한다. 불완전한 쌍은 설정 오류이며 서로 다른 쌍을 혼합하지 않는다.
+
+### D4.rest-api.cache
+
+기존 출처 없는 `data/*.json`은 읽거나 병합하지 않고 그대로 보존한다. 새 시장 캐시 schemaVersion은 2이고 source는 `kiwoom-paper` 또는 `kiwoom-real`이다. 경로는 `data/<source>/<code>_<tf>.json`이다. 기존 필드에 source를 추가하며 source/code/tf/schemaVersion 불일치는 빈 캐시로 취급한다. 가격 0으로 오류를 대신하거나 생성 데이터로 복귀하지 않는다. 계좌 응답·토큰·키를 시장 캐시나 workspace에 저장하지 않는다.
+
+### D5.rest-api.contract
+
+기존 adapter 공개 메서드 candles(code,tf,count=None,since=0), quote(code), balance(), order(code,side,qty,price), get()의 역할을 유지한다.
+인증은 `/oauth2/token`; expires_dt는 KST로 해석하며 동시 발급은 lock으로 합친다. 토큰은 서버 메모리에만 보관한다. 조회 요청의 401/8005는 토큰 재발급 후 1회 재시도한다. 주문은 자동 재시도하지 않는다. 조회/주문의 HTTP 오류·키움 오류·비JSON 응답을 성공으로 취급하지 않는다.
+차트 TR: tick=ka10079, 1m/5m/30m=ka10080, 1d=ka10081, 1w=ka10082, 1M=ka10083. 배열 키는 각각 stk_tic_chart_qry, stk_min_pole_chart_qry, stk_dt_pole_chart_qry, stk_stk_pole_chart_qry, stk_mth_pole_chart_qry로 고정한다. 첫 배열을 임의 선택하지 않는다. 시간은 KST 명시 변환, OHLC/거래량은 부호 제거, 변화액·등락률은 부호 유지한다. 필수 값 누락·비수치 값은 오류다.
+연속 조회는 cont-yn/next-key를 소비하며 count(기본 600, 최대 1200) 충족, since 경계 도달, 연속키 종료 중 최초 조건에서 멈춘다. 최대 20페이지, 반복 키는 오류다. 일부 페이지 실패 시 부분 결과를 정상 최신 데이터로 저장하지 않는다. 중복 시각은 먼저 받은 최신 페이지의 행을 유지하고 시간 오름차순으로 반환한다.
+현재가 ka10001, 예수금 kt00001(qry_tp=3), 평가잔고 kt00018(qry_tp=1,dmst_stex_tp=KRX)를 사용한다. 잔고는 acnt_evlt_remn_indv_tot 배열을 명시적으로 읽는다. cash는 예수금 조회 결과에서 가져온다. 주문 TR kt10000/kt10001은 기존 사용자 주문 경로에서만 실행한다.
+
+### D10.rest-api.errors
+
+키 미설정: health는 서버 상태와 설정 미완료를 반환하고 화면은 안내를 표시한다. 조회는 명시적 오류이며 허위 데이터는 0건이다. 통신 실패: 같은 source의 기존 캐시만 제공하고 error와 이전 fetchedAt을 유지한다. 1700 유량 초과: 오류를 전달하고 자동 폭주 재시도를 하지 않는다. 요청은 adapter에서 직렬화하고 최소 600ms 간격을 둔다. 주문 테스트는 외부 주문 요청 0건이다.
+
+### D11.rest-api.acceptance
+
+독립 응답 fixture로 인증 동시성, KST 토큰 만료, 401/8005 조회 1회 재시도, 주문 재시도 0회, TR별 배열 추출, 부호 처리, 연속키·중복·정렬·count, 기존 mock 캐시 배제, source 간 격리, 예수금/잔고 분리, 오류 시 fetchedAt 불변을 검증한다.
+실제 연결 acceptance는 키움 인증·현재가·각 지원 주기의 차트·잔고 조회만 수행한다. 주문을 전송하지 않는다. API 키가 없으면 자동 검증과 실제 연결 검증을 구분해 기록한다.
+
+### D13.rest-api.sequence
+
+이 범위를 기존 Tranche 4보다 먼저 수행한다: 설계 검토 및 승인 → adapter/config → 시장 캐시 격리 → health/UI 오류 표시 → 자동 검증 → 실제 읽기 전용 연결 검증 → v6 잔여 작업 재개.
+
+### D14.rest-api.open
+
+실제 연결 인증 설정을 확인했다. 현재 프로젝트 인증 설정 구성과 실제 조회 성공을 확인했다. 키 값 자체를 대화나 로그에 기록하지 않는다. 2026-09-06 사용자 `모두 진행`으로 추가 설계 승인 완료.

@@ -22,7 +22,7 @@ if (-not (Test-Path $lwc) -or (Get-Item $lwc).Length -lt 100000) {
         try { Invoke-WebRequest -Uri $u -OutFile $lwc -UseBasicParsing -TimeoutSec 20; break } catch { }
     }
 }
-if (-not (Test-Path $lwc)) { Write-Output '[WARN] lwc ?????- ??? ????? }
+if (-not (Test-Path $lwc)) { Write-Output '[WARN] chart library missing' }
 
-Write-Output '[RUN] http://127.0.0.1:8777'
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8777
+Write-Output '[RUN] http://127.0.0.1:8077'
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8077

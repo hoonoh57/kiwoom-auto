@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 set "HOST=127.0.0.1"
-set "PORT=8777"
+set "PORT=8077"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "try{ if((Invoke-WebRequest -Uri 'http://%HOST%:%PORT%/api/health' -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200){ exit 0 } }catch{}; exit 1"
 if errorlevel 1 (

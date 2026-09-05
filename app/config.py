@@ -5,14 +5,20 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-MODE = os.getenv("KIWOOM_MODE", "mock").strip().lower()
+# Design: D3.rest-api.source
+MODE = "live"
+USE_PAPER = os.getenv("KIWOOM_USE_PAPER", "1").strip() == "1"
 APPKEY = os.getenv("KIWOOM_APPKEY", "").strip()
 SECRETKEY = os.getenv("KIWOOM_SECRETKEY", "").strip()
-USE_PAPER = os.getenv("KIWOOM_USE_PAPER", "1").strip() == "1"
+if not APPKEY and not SECRETKEY:
+    prefix = "KIWOOM_MOCK" if USE_PAPER else "KIWOOM_REAL"
+    APPKEY = os.getenv(prefix + "_APP_KEY", "").strip()
+    SECRETKEY = os.getenv(prefix + "_SECRET_KEY", "").strip()
+SOURCE = "kiwoom-paper" if USE_PAPER else "kiwoom-real"
 ACCOUNT = os.getenv("KIWOOM_ACCOUNT", "").strip()
 
 HOST = os.getenv("APP_HOST", "127.0.0.1")
-PORT = int(os.getenv("APP_PORT", "8777"))
+PORT = int(os.getenv("APP_PORT", "8077"))
 
 BASE = "https://mockapi.kiwoom.com" if USE_PAPER else "https://api.kiwoom.com"
 

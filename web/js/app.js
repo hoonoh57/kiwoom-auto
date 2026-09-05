@@ -475,7 +475,8 @@ function initKeys() {
 /* ---- 부팅 ---- */
 async function boot() {
   try { env = await fetch('/api/health').then((r) => r.json()); } catch (e) { bus.push('[HEALTH] ' + e); }
-  $('#mode').textContent = `${env.mode || '?'} ${env.paper ? '모의' : '실전'}`;
+  // Design: D10.rest-api.errors
+  $('#mode').textContent = `키움 REST ${env.paper ? '모의투자' : '실투자'}${env.configured ? '' : ' · 인증 설정 필요'}`;
   bus.sub((line) => { $('#status').textContent = line; });
 
   let raw = await jget('');

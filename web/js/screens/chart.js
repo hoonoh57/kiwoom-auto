@@ -1,3 +1,4 @@
+import { marketTimeOptions } from './chart-time.js';
 /* screens/chart.js - screen kind 'chart' [0615].
    body = 기존 프로필(panes/items/order/view/ui). 시리즈 계층은 무변경. */
 
@@ -198,8 +199,10 @@ export const SCREEN = {
     host.append(root);
 
     const engine = createEngine(cwrap);
+    // Design: D5.v6.market-time-display
+    engine.chart.applyOptions(marketTimeOptions(form.tf));
     const runtime = createRuntime({ core: engine, registry: addons });
-    const h = { root, engine, runtime, defaultKey: keyOf(form.code, form.tf),
+    const h = { root, engine, runtime, timeframe: form.tf, defaultKey: keyOf(form.code, form.tf),
                 dataByKey: new Map(), unsubs: new Map(), bodyHash: '', panes: [], tid: 0 };
 
     // Design: D7.v6.legend-selection
@@ -340,6 +343,10 @@ export const SCREEN = {
     });
 
     h.resub = (f) => {
+      if (h.timeframe !== f.tf) {
+        engine.chart.applyOptions(marketTimeOptions(f.tf));
+        h.timeframe = f.tf;
+      }
       cin.value = f.code;
       tsel.value = f.tf;
       syncFeeds(f);

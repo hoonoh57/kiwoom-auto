@@ -2,6 +2,9 @@
 
 ## 한 일
 
+- [x] D5.v6.market-time-display: 시간축·crosshair를 Asia/Seoul로 표시. NXT 08:00/KRX 09:00 및 자정 00:00 회귀 검사, UTC epoch 보존 검증. ENGINE/BRIDGE 변경 0.
+
+
 - [x] D3.v6.candle-source: 새 캔들의 code/tf 기본값을 null 상속으로 교정. 상속 설정 UI와 Enter 확정을 추가하고, 사용자가 지목한 f13의 단일 캔들을 상속으로 수정(원문 백업 보존).
 - [x] 종목 변경 시 해당 캔들만 update되고 고정 비교 종목은 유지되는 회귀 검증 PASS. 000660 REST 반환 확인.
 

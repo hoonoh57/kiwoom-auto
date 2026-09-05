@@ -735,3 +735,9 @@ L4 선택 대상 삭제/비활성: 동일 patch로 selectedItemId=null; 다른 i
 L5 저장 후 재적용: 선택 표시 복원, selection 전용 ensure 0.
 L6 선택만 변경: engine geometry/series primitive 호출 0.
 L7 stale ID 및 legacy 필드 누락: null로 정규화. 명시적으로 등록된 신규 selectable kind는 ENGINE/BRIDGE/STATE diff 수정 0.
+
+
+## D5.v6.market-time-display
+
+사용자 요청: NXT 08:00/KRX 09:00 봉이 UTC 자정으로 보이는 표시 오류 수정. 원본 UTC epoch와 저장 캐시는 유지한다. chart Add-on에서 Asia/Seoul, hourCycle=h23 포맷터를 만들어 기존 generic chart.applyOptions로 전달한다. ENGINE/BRIDGE는 거래소·한국시간 의미를 소유하지 않는다. intraday 시간축은 HH:mm(틱은 HH:mm:ss), 일/주/월은 한국 날짜를 표시하며 crosshair는 한국 날짜·시간을 표시한다. timeframe 변경 때 포맷터를 갱신한다. 세션 필터·거래소 데이터 소스는 바꾸지 않는다.
+D11 검증: 2026-09-03T23:00:00Z → 09-04 08:00, 2026-09-04T00:00:00Z → 09-04 09:00; 한국 자정은 00:00이며 24:00이 아님. epoch 불변, 브라우저 timezone과 무관한 결과.

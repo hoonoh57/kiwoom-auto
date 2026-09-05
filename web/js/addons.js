@@ -137,7 +137,8 @@ function candleData(data, p, id) {
 }
 
 registry.set('candles', {
-  meta: { label: '캔들', pane: 'main', paneH: 95, auto: true, configureOnAdd: true,
+  // Design: D5.v6.legend-selection
+  meta: { selectable: true, label: '캔들', pane: 'main', paneH: 95, auto: true, configureOnAdd: true,
     summary: (it) => `${it.props.code || '상단 종목'} ${it.props.tf || '상단 주기'} ${it.props.placement === 'pane' ? '서브' : '중첩'}`.trim(),
     schema: [
     { k: 'code', t: 'text', label: '종목코드 (빈칸: 상단)', pattern: '^(?:\\d{6})?$', maxLength: 6, def: '', create: true,

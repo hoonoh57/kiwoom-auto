@@ -710,3 +710,28 @@ Tranche 7  전체 trace·브라우저 acceptance         D10, D11, D12
 ### D14.rest-api.open
 
 실제 연결 인증 설정을 확인했다. 현재 프로젝트 인증 설정 구성과 실제 조회 성공을 확인했다. 키 값 자체를 대화나 로그에 기록하지 않는다. 2026-09-06 사용자 `모두 진행`으로 추가 설계 승인 완료.
+
+
+## D3.v6.legend-selection — 종목 레전드 선택
+
+승인 범위: 사용자가 4축 유지·캔들 item ID 선택 방안을 제시받고 `진행`으로 승인했다.
+STATE의 chart body.ui.selectedItemId는 string|null이며 기본값 null이다. form 내부 item ID이고 종목코드가 아니다. 등록 meta.selectable=true인 item만 대상이다. 기존 필드 누락은 null로 정규화한다. 없는 ID·선택 불가능한 kind·비활성·숨김 item은 null로 정규화한다. 삭제/비활성/숨김 명령은 대상 선택을 같은 patch에서 null로 만든다. 다른 item으로 자동 대체하지 않는다. 전역 OFF는 선택 ID를 보존한다.
+
+## D5.v6.legend-selection — 등록 메타데이터와 표시
+
+캔들 Add-on은 meta.selectable=true와 기존 source 계약으로 선택 가능한 종목임을 선언한다. chart screen UI는 이 등록 메타데이터만 읽으며 kind 이름 분기를 추가하지 않는다. body.order 순서로 레전드 버튼을 만든다. 각 버튼은 effective code, tf, item ID를 표시하고 disabled/hidden item은 선택 불가로 표시한다. 같은 종목·주기라도 item ID로 구별한다. 선택 버튼에 aria-pressed=true를 쓰고 테두리와 배경으로 강조한다. 레전드는 패널을 닫아도 표시한다.
+
+## D7.v6.legend-selection — 선택 명령과 4축 경계
+
+UI 클릭은 ctx.patchBody({ui:{selectedItemId:id}}) 하나만 요청한다. 같은 ID 재선택과 유효하지 않은 대상 선택은 write 0이다. UI는 chart/series handle을 조작하지 않는다. STATE가 선택 ID를 영속하며 ADDON이 메타데이터·source·표시 의미를 소유한다. BRIDGE와 ENGINE의 선택 전용 API·kind 분기·live selection 저장소는 추가하지 않는다. 선택만 변경하면 series ensure/update/remove, geometry primitive, data subscription 변경 모두 0이다.
+향후 전략 대상은 {formId,itemId}로 식별한다. 레전드 선택 변경으로 이미 연결된 전략의 대상을 이동시키지 않는다. 이번 범위는 선택 기능만이며 전략 실행·자동 주문은 추가하지 않는다.
+
+## D11.v6.legend-selection — acceptance
+
+L1 레전드 B 클릭: STATE patch 1, selectedItemId=B, series operation 0, data subscription 변경 0.
+L2 같은 B 재클릭: STATE patch 0.
+L3 동일 code/tf의 A/B: item ID로 각각 선택 가능.
+L4 선택 대상 삭제/비활성: 동일 patch로 selectedItemId=null; 다른 item 선택 0.
+L5 저장 후 재적용: 선택 표시 복원, selection 전용 ensure 0.
+L6 선택만 변경: engine geometry/series primitive 호출 0.
+L7 stale ID 및 legacy 필드 누락: null로 정규화. 명시적으로 등록된 신규 selectable kind는 ENGINE/BRIDGE/STATE diff 수정 0.

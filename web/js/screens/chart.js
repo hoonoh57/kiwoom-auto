@@ -5,6 +5,7 @@ import * as addons from '../addons.js';
 import * as proptree from '../proptree.js';
 import { createEngine } from '../core.js';
 import { createRuntime } from '../runtime.js';
+import { selectable, selectionPatch, contentKey, renderLegend } from './chart-selection.js';
 import { DEL } from '../deskspec.js';
 
 const TF_BS = { tick: 4, '1m': 8, '5m': 8, '30m': 9, '1d': 10, '1w': 12, '1M': 14 };
@@ -129,7 +130,7 @@ export const SCREEN = {
 
   defaultBody(form) {
     const s = seed(form);
-    const body = { items: s.items, order: s.order, panes: [], view: {}, ui: { open: { main: true }, panel: true } };
+    const body = { items: s.items, order: s.order, panes: [], view: {}, ui: { open: { main: true }, panel: true, selectedItemId: null } };
     body.panes = normPanes([], body, form);
     body.view = { barSpacing: TF_BS[form.tf] || 8, autoScale: true };
     return body;
@@ -157,6 +158,8 @@ export const SCREEN = {
     b.view.autoScale = b.view.autoScale !== false;
     b.ui = obj(b.ui);
     b.ui.open = obj(b.ui.open);
+    // Design: D3.v6.legend-selection
+    if (!selectable(b, b.ui.selectedItemId, addons.meta)) b.ui.selectedItemId = null;
     if (b.ui.panel === undefined) b.ui.panel = true;
     return b;
   },
@@ -189,7 +192,9 @@ export const SCREEN = {
     const tree = el('div', 'cf-tree');
     panel.append(addw, tree);
     main.append(cwrap, panel);
-    root.append(bar, main);
+    const legend = el('div', 'cf-legend');
+    legend.setAttribute('aria-label', '종목 선택');
+    root.append(bar, legend, main);
     host.append(root);
 
     const engine = createEngine(cwrap);
@@ -197,9 +202,15 @@ export const SCREEN = {
     const h = { root, engine, runtime, defaultKey: keyOf(form.code, form.tf),
                 dataByKey: new Map(), unsubs: new Map(), bodyHash: '', panes: [], tid: 0 };
 
+    // Design: D7.v6.legend-selection
+    h.contentKey = contentKey(form);
+    h.legend = () => renderLegend(legend, ctx.form(), addons, (id) => {
+      const value = selectionPatch(ctx.form().body, id, addons.meta);
+      if (value) ctx.patchBody(value);
+    }, document);
     const cbs = {
       toggleOpen: (k, v) => ctx.patchBody({ ui: { open: { [k]: v } } }),
-      toggleItem: (id, on) => ctx.patchBody({ items: { [id]: { enabled: on, visible: on } } }),
+      toggleItem: (id, on) => ctx.patchBody({ items: { [id]: { enabled: on, visible: on } }, ...(!on && ctx.form().body.ui.selectedItemId === id ? { ui: { selectedItemId: null } } : {}) }),
       patchProps: (id, p) => {
         const b = ctx.form().body;
         const next = { ...b.items[id].props, ...p };
@@ -207,7 +218,7 @@ export const SCREEN = {
       },
       deleteItem: (id) => {
         const b = ctx.form().body;
-        ctx.patchBody({ items: { [id]: DEL }, order: b.order.filter((x) => x !== id) });
+        ctx.patchBody({ items: { [id]: DEL }, order: b.order.filter((x) => x !== id), ...(b.ui.selectedItemId === id ? { ui: { selectedItemId: null } } : {}) });
       },
       prepareItem: (kind) => {
         const b = ctx.form().body;
@@ -232,7 +243,7 @@ export const SCREEN = {
         const items = {};
         for (const id of gone) items[id] = DEL;
         ctx.patchBody({ items, order: b.order.filter((id) => !gone.includes(id)),
-                        panes: b.panes.filter((p) => p.id !== pid) });
+                        panes: b.panes.filter((p) => p.id !== pid), ...(gone.includes(b.ui.selectedItemId) ? { ui: { selectedItemId: null } } : {}) });
       },
       previewHeight: (pid, v) => {
         engine.setPaneStretch(h.panes.map((p) => (p.id === pid ? v : p.h)));
@@ -257,6 +268,7 @@ export const SCREEN = {
     tog.onclick = () => ctx.patchBody({ ui: { panel: !obj(ctx.form().body.ui).panel } });
 
     function draw(geo) {
+      h.legend();
       const f = ctx.form();
       if (!f) return;
       const empty = { bars: [], barsHash: '0', liveBar: null, markers: [], ev: null, err: null };
@@ -297,6 +309,7 @@ export const SCREEN = {
       }
     }
 
+    h.legend();
     syncFeeds(form);
 
     // Design: D5.v6.chart-range
@@ -344,6 +357,10 @@ export const SCREEN = {
   },
 
   update(h, form, ctx) {
+    // Design: D7.v6.legend-selection — selection writes never reach series primitives.
+    const key = contentKey(form);
+    if (h.contentKey === key) { h.legend(); return; }
+    h.contentKey = key;
     h.resub(form);
     h.draw(true);
   },

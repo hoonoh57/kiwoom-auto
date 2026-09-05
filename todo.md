@@ -22,6 +22,17 @@
 
 ## 할 일
 
+### 선행 구현 — 종목 레전드 선택
+
+- [x] 사용자 `진행` 승인에 따라 D3/D5/D7/D11.v6.legend-selection 계약을 코드보다 먼저 기록했다.
+- [x] body.ui.selectedItemId 영속 선택, 레전드 버튼·선택 강조, 동일 종목의 item ID 구분 구현.
+- [x] 선택 대상 삭제/비활성 시 같은 patch에서 선택 해제. legacy/stale 선택은 null 정규화.
+- [x] tests/chart-selection-v6.mjs: 선택·재클릭·복원·무효 ID·신규 selectable kind·선택 변경 시 draw/subscription 0 검증 PASS.
+- [x] ENGINE/BRIDGE 파일 변경 0. 향후 전략 대상은 {formId,itemId}; 이번에는 전략 실행을 추가하지 않음.
+- [ ] 실제 브라우저에서 레전드 조작 및 시각 확인. 연결 가능한 브라우저 부재로 자동 검증만 수행.
+- 다음: Tranche 6 잔여 구현.
+
+
 ### 우선 작업 — 실제 키움 REST 전환 (2026-09-06)
 
 - 참조 저장소는 `hoonoh57/kiwoom-desk`로 정정됨. server/index.ts, src/api/KiwoomClient.ts, src/api/trSchema.ts 검토 완료.

@@ -48,16 +48,16 @@ REMEDIATION_REQUIRED
 
 ```text
 branch       : main
-제품 기준선  : 078cd98 enforce-unique-vd-labels
-문서 tranche : 이 todo.md를 포함한 v6 blueprint 커밋
-worktree     : rules.md, design.md, todo.md, workspace.v6.fixture.json r6.2 문서 변경
+제품 기준선  : 95d97a8 docs: approve multi-vd workspace v6 design
+문서 tranche : 95d97a8 r6.2 APPROVED
+worktree     : Tranche 1 STATE v6 구현
 현재 STATE   : state/workspace.json schemaVersion 5
 목표 STATE   : schemaVersion 6
 설계 상태    : APPROVED (r6.2, 전체 D1~D14)
 OPEN         : 0
 게이트       : C1 완료, C2 완료, C3(T12) 완료, C4(APPROVED) 완료
 모델 운용    : gpt-5.6-sol high 유지; deterministic 저위험 구현 진입 전에 low 전환 가능 시점 고지
-다음 설계 ID : D6.v6.*, D11.v6.*, D13.v6.public-signatures
+다음 설계 ID : D3.v6.*, D4.v6.*, D7.v6.slot-commands
 ```
 
 ### Gate 0 — 코드 착수 전
@@ -70,11 +70,11 @@ OPEN         : 0
 
 ### Tranche 1 — STATE v6 [D3.v6.*, D4.v6.*, D7.v6.slot-commands]
 
-- [ ] `deskspec.js`에 v6 default/validate/reconcile과 labelKey를 구현한다.
-- [ ] v5→v6 migration과 백업·원자 저장 실패 계약을 구현한다.
-- [ ] 슬롯 활성화·이름검증·초기화·복제 patch 순수 함수를 구현한다.
-- [ ] fixture round-trip, 중복 라벨, 8개 초과, ID 재매핑, z 정규화 테스트를 통과한다.
-- [ ] green 후 해당 tranche만 커밋하고 push한다.
+- [x] `deskspec.js`에 v6 default/validate/reconcile과 labelKey를 구현했다.
+- [x] v5→v6 migration과 백업·원자 저장 실패 계약을 구현했다.
+- [x] 슬롯 활성화·이름검증·초기화·복제 patch 순수 함수를 구현했다.
+- [x] fixture round-trip, 중복 라벨, 8개 초과, ID 재매핑, z 정규화 테스트를 통과했다.
+- [x] green 상태의 Tranche 1 커밋으로 반영하고 push한다.
 
 ### Tranche 2 — BRIDGE 정합성 [D7.v6.desired-diff, D7.v6.z-list, D8.v6.*, D9.v6.*]
 
@@ -109,12 +109,13 @@ OPEN         : 0
 - [ ] U1~U6와 마지막 슬롯 보호 acceptance를 통과한다.
 - [ ] green 후 해당 tranche만 커밋하고 push한다.
 
-### Tranche 6 — 탐색·생산성 [D7.v6.navigator, D7.v6.snapshot-import]
+### Tranche 6 — 탐색·생산성·복구 [D7.v6.navigator, D7.v6.snapshot-import, D4.v6.recovery-mode]
 
 - [ ] 전체 화면 탐색기와 슬롯별 visible count/error dot을 구현한다.
 - [ ] `Ctrl+1`~`Ctrl+8`, `Ctrl+K` 명령 팔레트를 구현한다.
 - [ ] 빈 슬롯 VD 복제와 name snapshot CRUD를 구현한다.
 - [ ] 1단계 undo와 workspace JSON import/export 검증·diff 확인 modal을 구현한다.
+- [ ] 부팅 전 recovery status 확인과 FATAL 복구 화면을 recovery API에 연결한다.
 - [ ] U7~U13과 취소 경로 STATE write 0을 통과한다.
 - [ ] green 후 해당 tranche만 커밋하고 push한다.
 

@@ -1,10 +1,9 @@
-/* deskspec.js - STATE 스펙 (schemaVersion 5)
-   순수 모듈. DOM/네트워크/화면종류 이름을 모른다.
-   cat = screens.spec 어댑터 { has, meta, legacyKind, defaultBody, reconcileBody } */
+/* deskspec.js - schemaVersion 6 STATE.
+   Pure state policy: no DOM, network, persistence, or screen-kind branches. */
 
-export const PROJECT_SCHEMA = 5;
-export const VD_MAX = 0;        // 0 = 무제한 (Q1)
-export const VD_HOTKEYS = 8;    // Ctrl+1..8 만 부여
+export const PROJECT_SCHEMA = 6;
+export const VD_MAX = 8;
+export const VD_HOTKEYS = 8;
 export const GRID = 24;
 export const MIN_W = 240;
 export const MIN_H = 120;
@@ -12,261 +11,416 @@ export const DEF_CODE = '005930';
 export const DEF_TF = '1m';
 export const DEL = '__delete__';
 
-const ROOT_KEYS = ['schemaVersion', 'globalOn', 'activeVd', 'symLink', 'layout', 'seq', 'vds', 'forms'];
-const VD_KEYS = ['label', 'order', 'z'];
+const ROOT_KEYS = [
+  'schemaVersion', 'globalOn', 'activeVd', 'symLink', 'layout', 'seq',
+  'vds', 'forms', 'snapshots', 'undo',
+];
+const VD_KEYS = ['slot', 'label', 'enabled', 'z'];
+const FORM_KEYS = [
+  'screen', 'vd', 'allVd', 'visible', 'title', 'code', 'tf', 'link',
+  'shareGroup', 'rect', 'winState', 'prevRect', 'body',
+];
 
-const isNum = (v) => typeof v === 'number' && isFinite(v);
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const obj = (v) => (isObject(v) ? v : {});
 const arr = (v) => (Array.isArray(v) ? v : []);
-const sstr = (v, d) => (typeof v === 'string' && v ? v : d);
-const idNum = (s) => { const m = /(\d+)$/.exec(s || ''); return m ? +m[1] : 0; };
-const byIdNum = (a, b) => idNum(a) - idNum(b);
+const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const clone = (v) => JSON.parse(JSON.stringify(v));
+const idNum = (s) => { const m = /(\d+)$/.exec(String(s || '')); return m ? +m[1] : 0; };
+const byId = (a, b) => idNum(a) - idNum(b) || String(a).localeCompare(String(b));
+const slotId = (n) => `vd${n}`;
+const validSlotId = (id) => /^vd[1-8]$/.test(String(id));
+const codePoints = (s) => [...String(s)];
 
-function delExtra(node, keep) {
-  const out = {};
-  for (const k of Object.keys(obj(node))) if (!keep.includes(k)) out[k] = DEL;
+function uniqueStrings(values) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    if (typeof value !== 'string' || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
   return out;
 }
 
-export function defaultVd(label, order) {
-  return { label: String(label), order: order | 0, z: [] };
+function exactPatch(before0, after0) {
+  const before = obj(before0);
+  const after = obj(after0);
+  const out = {};
+  for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    if (!(key in after)) { out[key] = DEL; continue; }
+    if (!(key in before)) { out[key] = clone(after[key]); continue; }
+    const a = before[key];
+    const b = after[key];
+    if (isObject(a) && isObject(b)) {
+      const nested = exactPatch(a, b);
+      if (Object.keys(nested).length) out[key] = nested;
+    } else if (JSON.stringify(a) !== JSON.stringify(b)) out[key] = clone(b);
+  }
+  return out;
 }
 
-export function defaultProject() {
+function screenMeta(cat, kind) {
+  if (!cat || typeof cat.meta !== 'function') return {};
+  try { return obj(cat.meta(kind)); } catch (_) { return {}; }
+}
+
+function normalRect(raw0, meta0, bounds0) {
+  const raw = obj(raw0);
+  const meta = obj(meta0);
+  const bounds = obj(bounds0);
+  const minW = Math.max(MIN_W, Math.round(obj(meta.minSize).w || MIN_W));
+  const minH = Math.max(MIN_H, Math.round(obj(meta.minSize).h || MIN_H));
+  const bw = Math.max(minW, Math.round(bounds.w || 1280));
+  const bh = Math.max(minH, Math.round(bounds.h || 720));
+  const dw = obj(meta.defRect).w || 720;
+  const dh = obj(meta.defRect).h || 460;
+  const w = clamp(Math.round(finite(raw.w) ? raw.w : dw), minW, bw);
+  const h = clamp(Math.round(finite(raw.h) ? raw.h : dh), minH, bh);
+  const x = clamp(Math.round(finite(raw.x) ? raw.x : GRID), 0, Math.max(0, bw - w));
+  const y = clamp(Math.round(finite(raw.y) ? raw.y : GRID), 0, Math.max(0, bh - h));
+  return { x, y, w, h };
+}
+
+// Design: D3.v6.vd-fields
+export function labelKey(value) {
+  return String(value ?? '').trim().normalize('NFKC').replace(/[A-Z]/g, (c) => c.toLowerCase());
+}
+
+// Design: D3.v6.vd-fields
+export function validateVdLabel(st, id, value) {
+  const label = String(value ?? '').trim();
+  if (!label || codePoints(label).length > 8) return { ok: false, reason: 'invalid', conflictSlot: null };
+  const wanted = labelKey(label);
+  for (let slot = 1; slot <= VD_MAX; slot++) {
+    const otherId = slotId(slot);
+    if (otherId !== id && labelKey(obj(obj(st).vds)[otherId]?.label) === wanted) {
+      return { ok: false, reason: 'duplicate', conflictSlot: slot };
+    }
+  }
+  return { ok: true, reason: null, conflictSlot: null };
+}
+
+function nextUniqueNumericLabel(vds, start, exceptId = null) {
+  const used = new Set(Object.entries(obj(vds))
+    .filter(([id]) => id !== exceptId)
+    .map(([, v]) => labelKey(obj(v).label)));
+  let n = Math.max(1, start | 0);
+  while (used.has(labelKey(String(n)))) n++;
+  return String(n);
+}
+
+function emptyVd(slot, enabled = false, label = null) {
+  return { slot, label: label ?? String(slot), enabled: !!enabled, z: [] };
+}
+
+// Design: D3.v6.root-fields
+export function defaultStateV6() {
+  const vds = {};
+  for (let slot = 1; slot <= VD_MAX; slot++) vds[slotId(slot)] = emptyVd(slot, slot === 1);
   return {
     schemaVersion: PROJECT_SCHEMA,
     globalOn: true,
     activeVd: 'vd1',
     symLink: 'vd',
-    layout: { sidebarW: 300 },
-    seq: { form: 0 },
-    vds: { vd1: defaultVd('1', 0) },
+    layout: { sidebarW: 300, snapPx: 8 },
+    seq: { form: 1, snapshot: 1 },
+    vds,
     forms: {},
+    snapshots: {},
+    undo: null,
   };
 }
 
+export const defaultProject = defaultStateV6;
+
+export function defaultVd(label, order = 0) {
+  const slot = clamp((order | 0) + 1, 1, VD_MAX);
+  return emptyVd(slot, true, String(label));
+}
+
 export function vdOrder(st) {
-  const vds = obj(st.vds);
-  return Object.keys(vds).sort((a, b) => (vds[a].order | 0) - (vds[b].order | 0) || byIdNum(a, b));
+  return Array.from({ length: VD_MAX }, (_, i) => slotId(i + 1))
+    .filter((id) => Object.prototype.hasOwnProperty.call(obj(obj(st).vds), id));
 }
 
 export function nextVdId(st) {
-  let n = 0;
-  for (const k of Object.keys(obj(st.vds))) n = Math.max(n, idNum(k));
-  return 'vd' + (n + 1);
+  return vdOrder(st).find((id) => !obj(st.vds[id]).enabled) || null;
 }
 
 export function nextVdOrder(st) {
-  let n = -1;
-  for (const v of Object.values(obj(st.vds))) n = Math.max(n, obj(v).order | 0);
-  return n + 1;
+  const id = nextVdId(st);
+  return id ? idNum(id) - 1 : VD_MAX;
 }
 
 export function nextVdLabel(st) {
-  let n = 0;
-  for (const [id, v] of Object.entries(obj(st.vds))) {
-    n = Math.max(n, idNum(String(obj(v).label ?? '').trim()), idNum(id));
-  }
-  const used = new Set(Object.values(obj(st.vds)).map((v) => String(obj(v).label ?? '').trim()));
-  let s = String(n + 1);
-  while (used.has(s)) s = String(+s + 1);
-  return s;
+  const id = nextVdId(st);
+  return nextUniqueNumericLabel(obj(st).vds, id ? idNum(id) : VD_MAX + 1);
 }
 
 export function hasVdLabel(st, label, exceptId) {
-  const wanted = String(label ?? '').trim();
-  if (!wanted) return false;
-  return Object.entries(obj(st.vds)).some(([id, v]) =>
-    id !== exceptId && String(obj(v).label ?? '').trim() === wanted);
+  const result = validateVdLabel(st, exceptId, label);
+  return !result.ok && result.reason === 'duplicate';
 }
 
 export function nextFormId(st) {
-  let n = obj(st.seq).form | 0;
-  for (const k of Object.keys(obj(st.forms))) n = Math.max(n, idNum(k));
-  return 'f' + (n + 1);
-}
-
-function normRect(r0, meta, b) {
-  const r = obj(r0);
-  const mw = Math.max(MIN_W, obj(meta.minSize).w || MIN_W);
-  const mh = Math.max(MIN_H, obj(meta.minSize).h || MIN_H);
-  const bw = Math.max(mw + 8, b.w || 1280);
-  const bh = Math.max(mh + 8, b.h || 720);
-  const w = clamp(isNum(r.w) ? r.w : obj(meta.defRect).w || 720, mw, bw);
-  const h = clamp(isNum(r.h) ? r.h : obj(meta.defRect).h || 460, mh, bh);
-  const x = clamp(isNum(r.x) ? r.x : GRID, 0, Math.max(0, bw - w));
-  const y = clamp(isNum(r.y) ? r.y : GRID, 0, Math.max(0, bh - h));
-  return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+  let n = Math.max(1, obj(obj(st).seq).form | 0);
+  for (const id of Object.keys(obj(obj(st).forms))) n = Math.max(n, idNum(id) + 1);
+  return `f${n}`;
 }
 
 export function cascadeRect(st, vd, meta, bounds) {
-  const b = obj(bounds);
-  const forms = obj(st.forms);
-  const step = Object.keys(forms).filter((id) => forms[id] && forms[id].vd === vd).length % 8;
-  const base = normRect({}, meta, b);
-  return normRect({ x: GRID / 2 + step * GRID, y: GRID / 2 + step * GRID, w: base.w, h: base.h }, meta, b);
+  const count = Object.values(obj(obj(st).forms)).filter((f) => obj(f).vd === vd).length;
+  const step = count % 8;
+  const base = normalRect({}, meta, bounds);
+  return normalRect({ x: GRID / 2 + step * GRID, y: GRID / 2 + step * GRID, w: base.w, h: base.h }, meta, bounds);
 }
 
 export function defaultForm(st, kind, seed0, cat, bounds) {
   const seed = obj(seed0);
-  const meta = cat.meta(kind);
-  const vd = sstr(seed.vd, sstr(st.activeVd, 'vd1'));
-  const rect = seed.rect ? normRect(seed.rect, meta, obj(bounds)) : cascadeRect(st, vd, meta, bounds);
+  const meta = screenMeta(cat, kind);
+  const vd = validSlotId(seed.vd) ? seed.vd : (validSlotId(st.activeVd) ? st.activeVd : 'vd1');
+  const rect = seed.rect ? normalRect(seed.rect, meta, bounds) : cascadeRect(st, vd, meta, bounds);
+  const needCode = meta.needCode !== false;
+  const needTf = !!meta.needTf;
   const form = {
-    screen: kind,
-    vd,
-    allVd: !!seed.allVd,
-    title: sstr(seed.title, null),
-    code: meta.needCode ? sstr(seed.code, DEF_CODE) : null,
-    tf: meta.needTf ? sstr(seed.tf, DEF_TF) : null,
-    rect,
-    winState: 'normal',
-    prevRect: { ...rect },
-    body: {},
+    screen: String(kind || ''), vd, allVd: !!seed.allVd, visible: seed.visible !== false,
+    title: typeof seed.title === 'string' && seed.title ? seed.title : null,
+    code: needCode ? (/^\d{6}$/.test(String(seed.code || '')) ? String(seed.code) : DEF_CODE) : null,
+    tf: needTf ? (typeof seed.tf === 'string' && seed.tf ? seed.tf : DEF_TF) : null,
+    link: seed.link === 'pin' ? 'pin' : 'follow',
+    shareGroup: /^(all|10|[1-9])$/.test(String(seed.shareGroup || 'all')) ? String(seed.shareGroup || 'all') : 'all',
+    rect, winState: 'normal', prevRect: { ...rect }, body: {},
   };
-  form.body = cat.defaultBody(kind, form);
+  form.body = cat && typeof cat.defaultBody === 'function' ? cat.defaultBody(kind, form) : {};
   return form;
 }
 
-/* ---- 단일 복원 경로: reconcile ---- */
-export function reconcile(st0, cat, bounds) {
-  const before = JSON.stringify(obj(st0));
-  const st = JSON.parse(before);
-  const b = obj(bounds);
-  const dropped = [];
-
-  st.schemaVersion = PROJECT_SCHEMA;
-  if (typeof st.globalOn !== 'boolean') st.globalOn = true;
-  st.symLink = st.symLink === 'all' ? 'all' : 'vd';
-  st.layout = obj(st.layout);
-  if (!isNum(st.layout.sidebarW)) st.layout.sidebarW = 300;
-  st.seq = obj(st.seq);
-  if (!isNum(st.seq.form)) st.seq.form = 0;
-  st.vds = obj(st.vds);
-  st.forms = obj(st.forms);
-  if (!Object.keys(st.vds).length) st.vds = { vd1: defaultVd('1', 0) };
-
-  let i = 0;
-  for (const id of Object.keys(st.vds).sort(byIdNum)) {
-    const v = obj(st.vds[id]);
-    v.label = sstr(v.label, String(i + 1)).trim() || String(i + 1);
-    v.order = isNum(v.order) ? v.order : i;
-    v.z = arr(v.z).filter((x) => typeof x === 'string');
-    for (const k of Object.keys(v)) if (!VD_KEYS.includes(k)) delete v[k];
-    st.vds[id] = v;
-    i++;
-  }
-  // order 재번호: 중복/공백 제거. 표시 순서는 그대로 보존된다.
-  vdOrder(st).forEach((id, k) => { st.vds[id].order = k; });
-  // label 유일성: 먼저 나온 라벨을 보존하고 중복은 해당 VD 번호로 복구한다.
-  const labels = new Set();
-  for (const id of vdOrder(st)) {
-    let label = st.vds[id].label;
-    if (labels.has(label)) {
-      const own = String(idNum(id));
-      label = own !== '0' && !labels.has(own) ? own : nextVdLabel(st);
-      while (labels.has(label)) label = String(+label + 1);
-      st.vds[id].label = label;
-    }
-    labels.add(label);
-  }
-  if (!st.vds[st.activeVd]) st.activeVd = vdOrder(st)[0];
-
-  for (const id of Object.keys(st.forms).sort(byIdNum)) {
-    const f = obj(st.forms[id]);
-    if (!f.screen || !cat.has(f.screen)) { dropped.push(id); delete st.forms[id]; continue; }
-    const meta = cat.meta(f.screen);
-    if (!st.vds[f.vd]) f.vd = st.activeVd;
-    f.allVd = !!f.allVd;
-    f.title = sstr(f.title, null);
-    f.code = meta.needCode ? sstr(f.code, DEF_CODE) : null;
-    f.tf = meta.needTf ? sstr(f.tf, DEF_TF) : null;
-    f.rect = normRect(f.rect, meta, b);
-    f.prevRect = normRect(f.prevRect || f.rect, meta, b);
-    f.winState = ['normal', 'min', 'max'].includes(f.winState) ? f.winState : 'normal';
-    f.body = cat.reconcileBody(f.screen, obj(f.body), f);
-    st.forms[id] = f;
-  }
-
-  // z = (소속 폼) U (allVd 폼). 모든 VD가 동일 규칙.
-  const all = Object.keys(st.forms).sort(byIdNum);
-  for (const vid of Object.keys(st.vds)) {
-    const v = st.vds[vid];
-    const vis = (id) => st.forms[id] && (st.forms[id].vd === vid || st.forms[id].allVd);
-    v.z = v.z.filter((id, k) => vis(id) && v.z.indexOf(id) === k);
-    for (const id of all) if (vis(id) && !v.z.includes(id)) v.z.push(id);
-    const maxed = v.z.filter((id) => st.forms[id].winState === 'max');
-    for (const id of maxed.slice(0, -1)) {
-      const f = st.forms[id];
-      f.winState = 'normal';
-      f.rect = { ...f.prevRect };
-    }
-  }
-
-  let mx = st.seq.form | 0;
-  for (const k of Object.keys(st.forms)) mx = Math.max(mx, idNum(k));
-  st.seq.form = mx;
-
-  const changed = JSON.stringify(st) !== before;
-  const patch = {};
-  for (const k of ROOT_KEYS) patch[k] = st[k];
-  patch.forms = { ...st.forms };
-  for (const id of dropped) patch.forms[id] = DEL;
-  Object.assign(patch, delExtra(st0, ROOT_KEYS));
-  return { st, patch, changed, dropped };
+function orderedLegacyVds(rawVds) {
+  return Object.keys(obj(rawVds)).sort((a, b) => {
+    const av = obj(rawVds[a]);
+    const bv = obj(rawVds[b]);
+    const ao = finite(av.order) ? av.order | 0 : 0;
+    const bo = finite(bv.order) ? bv.order | 0 : 0;
+    return ao - bo || idNum(a) - idNum(b) || String(a).localeCompare(String(b));
+  });
 }
 
-/* ---- 마이그레이션 4 -> 5 ---- */
-export function migrate(raw0, cat, bounds) {
+function mapVds(raw0, migrating, repairs) {
+  const rawVds = obj(raw0.vds);
+  const keys = Object.keys(rawVds);
+  const alreadyFixed = !migrating && keys.length === VD_MAX && keys.every(validSlotId);
+  const groups = Array.from({ length: VD_MAX }, () => []);
+  const oldToNew = {};
+  if (alreadyFixed) {
+    for (let slot = 1; slot <= VD_MAX; slot++) {
+      const id = slotId(slot);
+      groups[slot - 1].push(id);
+      oldToNew[id] = id;
+    }
+  } else {
+    const ordered = orderedLegacyVds(rawVds);
+    ordered.forEach((oldId, index) => {
+      const slot = index < 7 ? index + 1 : 8;
+      groups[slot - 1].push(oldId);
+      oldToNew[oldId] = slotId(slot);
+    });
+    repairs.push(`[REPAIR] vd-layout count=${ordered.length}`);
+    if (ordered.length > VD_MAX) repairs.push(`[REPAIR] vd-merge count=${ordered.length - 7}`);
+  }
+  const vds = {};
+  const usedLabels = new Set();
+  for (let slot = 1; slot <= VD_MAX; slot++) {
+    const ids = groups[slot - 1];
+    const source = obj(rawVds[ids[0]]);
+    let label = String(source.label ?? '').trim();
+    if (!label || codePoints(label).length > 8 || usedLabels.has(labelKey(label))) {
+      label = nextUniqueNumericLabel(vds, slot);
+      repairs.push(`[REPAIR] vd-label slot=${slot}`);
+    }
+    usedLabels.add(labelKey(label));
+    const enabled = alreadyFixed ? !!source.enabled : ids.length > 0;
+    const z = ids.flatMap((id) => arr(obj(rawVds[id]).z));
+    vds[slotId(slot)] = { slot, label, enabled, z };
+    if (alreadyFixed && source.slot !== slot) repairs.push(`[REPAIR] vd-slot id=${slotId(slot)}`);
+  }
+  return { vds, groups, oldToNew };
+}
+
+function normalizeForm(id, raw0, activeVd, oldToNew, options, repairs) {
   const raw = obj(raw0);
-  if ((raw.schemaVersion | 0) >= PROJECT_SCHEMA) {
-    return { st: raw, patch: null, forms: 0, dropped: 0 };
+  const kind = typeof raw.screen === 'string' ? raw.screen : '';
+  const meta = screenMeta(options.cat, kind);
+  let vd = oldToNew[raw.vd] || (validSlotId(raw.vd) ? raw.vd : activeVd);
+  if (!validSlotId(vd)) vd = activeVd;
+  if (vd !== raw.vd) repairs.push(`[REPAIR] form-vd id=${id}`);
+  const rect = normalRect(raw.rect, meta, options.bounds);
+  const prevRect = normalRect(raw.prevRect || rect, meta, options.bounds);
+  const code = meta.needCode === false ? null
+    : (/^\d{6}$/.test(String(raw.code || '')) ? String(raw.code) : (meta.needCode ? DEF_CODE : null));
+  const tf = meta.needTf === false ? null
+    : (typeof raw.tf === 'string' && raw.tf ? raw.tf : (meta.needTf ? DEF_TF : null));
+  const form = {
+    screen: kind, vd, allVd: !!raw.allVd, visible: raw.visible !== false,
+    title: typeof raw.title === 'string' && raw.title ? raw.title : null,
+    code, tf,
+    link: raw.link === 'pin' ? 'pin' : 'follow',
+    shareGroup: /^(all|10|[1-9])$/.test(String(raw.shareGroup || 'all')) ? String(raw.shareGroup || 'all') : 'all',
+    rect, winState: ['normal', 'min', 'max'].includes(raw.winState) ? raw.winState : 'normal',
+    prevRect, body: {},
+  };
+  let body = obj(raw.body);
+  if (options.cat && typeof options.cat.reconcileBody === 'function' && kind) {
+    try { body = options.cat.reconcileBody(kind, body, form); } catch (_) { body = obj(raw.body); }
   }
-  const b = obj(bounds);
-  const kind = cat.legacyKind();
-  const meta = cat.meta(kind);
-  const st = defaultProject();
-  st.globalOn = typeof raw.globalOn === 'boolean' ? raw.globalOn : true;
-  st.vds = {};
-  st.forms = {};
-
-  let order = 0;
-  for (const id of Object.keys(obj(raw.vds)).sort(byIdNum)) {
-    st.vds[id] = defaultVd(sstr(obj(raw.vds[id]).label, String(order + 1)), order);
-    order++;
-  }
-  if (!Object.keys(st.vds).length) st.vds = { vd1: defaultVd('1', 0) };
-  const oldActive = sstr(obj(raw.active).vd, '');
-  st.activeVd = st.vds[oldActive] ? oldActive : vdOrder(st)[0];
-
-  const profiles = obj(raw.profiles);
-  let n = 0;
-  let dropped = 0;
-  for (const key of Object.keys(profiles).sort()) {
-    const prof = obj(profiles[key]);
-    if (!arr(prof.order).length) { dropped++; continue; }
-    const seg = String(key).split('|');
-    const vd = st.vds[seg[0]] ? seg[0] : st.activeVd;
-    const id = 'f' + (++n);
-    const rect = cascadeRect(st, vd, meta, b);
-    const form = {
-      screen: kind, vd, allVd: false, title: null,
-      code: sstr(seg[1], DEF_CODE), tf: sstr(seg[2], DEF_TF),
-      rect, winState: 'normal', prevRect: { ...rect }, body: {},
-    };
-    form.body = cat.reconcileBody(kind, prof, form);
-    st.forms[id] = form;
-    st.vds[vd].z.push(id);
-  }
-  st.seq.form = n;
-
-  const patch = {};
-  for (const k of ROOT_KEYS) patch[k] = st[k];
-  Object.assign(patch, delExtra(raw, ROOT_KEYS));
-  patch.vds = { ...st.vds };
-  for (const vid of Object.keys(obj(raw.vds))) {
-    patch.vds[vid] = { ...(st.vds[vid] || defaultVd('1', 0)), ...delExtra(obj(raw.vds)[vid], VD_KEYS) };
-  }
-  return { st, patch, forms: n, dropped };
+  form.body = clone(body);
+  return form;
 }
+
+function repairZ(st, sourceZ, repairs) {
+  const formIds = Object.keys(st.forms).sort(byId);
+  const allIds = formIds.filter((id) => st.forms[id].allVd);
+  const globalAll = uniqueStrings([
+    ...Array.from({ length: VD_MAX }, (_, i) => slotId(i + 1)).flatMap((id) => arr(sourceZ[id])),
+    ...allIds,
+  ]).filter((id) => allIds.includes(id));
+  for (let slot = 1; slot <= VD_MAX; slot++) {
+    const vid = slotId(slot);
+    const vd = st.vds[vid];
+    if (!vd.enabled) { vd.z = []; continue; }
+    const owned = formIds.filter((id) => st.forms[id].vd === vid && !st.forms[id].allVd);
+    const allowed = new Set([...owned, ...allIds]);
+    const prior = uniqueStrings(arr(sourceZ[vid])).filter((id) => allowed.has(id));
+    const z = [...prior];
+    for (const id of owned) if (!z.includes(id)) z.push(id);
+    for (const id of globalAll) if (!z.includes(id)) z.push(id);
+    if (JSON.stringify(z) !== JSON.stringify(arr(sourceZ[vid]))) repairs.push(`[REPAIR] z-fix id=${vid}`);
+    vd.z = z;
+  }
+}
+
+function reconcileInternal(raw0, options = {}) {
+  if (!isObject(raw0)) return { st: null, patch: null, repairs: [], fatal: { code: 'ROOT_TYPE' }, changed: false, dropped: [] };
+  if (finite(raw0.schemaVersion) && raw0.schemaVersion > PROJECT_SCHEMA) {
+    return { st: null, patch: null, repairs: [], fatal: { code: 'FUTURE_SCHEMA', schemaVersion: raw0.schemaVersion }, changed: false, dropped: [] };
+  }
+  const raw = clone(raw0);
+  const migrating = (raw.schemaVersion | 0) < PROJECT_SCHEMA;
+  const repairs = [];
+  const mapped = mapVds(raw, migrating, repairs);
+  const st = defaultStateV6();
+  st.globalOn = typeof raw.globalOn === 'boolean' ? raw.globalOn : true;
+  st.symLink = raw.symLink === 'all' ? 'all' : 'vd';
+  st.layout.sidebarW = clamp(Math.round(finite(obj(raw.layout).sidebarW) ? raw.layout.sidebarW : 300), 220, 520);
+  st.layout.snapPx = clamp(Math.round(finite(obj(raw.layout).snapPx) ? raw.layout.snapPx : 8), 0, 24);
+  st.vds = mapped.vds;
+  const requestedActive = mapped.oldToNew[raw.activeVd] || raw.activeVd;
+  st.activeVd = validSlotId(requestedActive) ? requestedActive : 'vd1';
+  st.forms = {};
+  for (const id of Object.keys(obj(raw.forms)).sort(byId)) {
+    st.forms[id] = normalizeForm(id, raw.forms[id], st.activeVd, mapped.oldToNew, options, repairs);
+    st.vds[st.forms[id].vd].enabled = true;
+  }
+  if (!Object.values(st.vds).some((v) => v.enabled)) st.vds.vd1.enabled = true;
+  if (!st.vds[st.activeVd]?.enabled) {
+    st.activeVd = vdOrder(st).find((id) => st.vds[id].enabled) || 'vd1';
+    repairs.push(`[REPAIR] active-vd id=${st.activeVd}`);
+  }
+  const sourceZ = {};
+  for (let slot = 1; slot <= VD_MAX; slot++) {
+    const vid = slotId(slot);
+    sourceZ[vid] = mapped.groups[slot - 1].flatMap((oldId) => arr(obj(obj(raw.vds)[oldId]).z));
+  }
+  repairZ(st, sourceZ, repairs);
+  let nextForm = Math.max(1, obj(raw.seq).form | 0);
+  for (const id of Object.keys(st.forms)) nextForm = Math.max(nextForm, idNum(id) + 1);
+  st.seq.form = nextForm;
+  st.seq.snapshot = Math.max(1, obj(raw.seq).snapshot | 0);
+  st.snapshots = clone(obj(raw.snapshots));
+  st.undo = isObject(raw.undo) ? clone(raw.undo) : null;
+  const patch = exactPatch(raw0, st);
+  const changed = Object.keys(patch).length > 0;
+  return {
+    st, patch,
+    repairs: migrating ? [`[MIGRATE] v${raw.schemaVersion || 0}->${PROJECT_SCHEMA}`, ...repairs] : repairs,
+    fatal: null, changed, dropped: [],
+  };
+}
+
+// Design: D4.v6.repair-vs-fatal
+export function reconcileV6(raw) { return reconcileInternal(raw); }
+
+// Design: D4.v6.migration-v5
+export function migrateV5(raw) { return reconcileInternal({ ...obj(raw), schemaVersion: 5 }); }
+
+export function reconcile(raw, cat, bounds) { return reconcileInternal(raw, { cat, bounds }); }
+
+export function migrate(raw, cat, bounds) {
+  const result = reconcileInternal(raw, { cat, bounds });
+  return { ...result, forms: result.st ? Object.keys(result.st.forms).length : 0, dropped: 0 };
+}
+
+function stateSnapshot(st) {
+  return clone({ activeVd: st.activeVd, symLink: st.symLink, layout: st.layout, vds: st.vds, forms: st.forms });
+}
+
+// Design: D7.v6.slot-commands
+export function activateSlotPatch(st0, slot) {
+  const st = clone(st0);
+  const id = slotId(slot | 0);
+  if (!st.vds?.[id]) return null;
+  if (!st.vds[id].enabled) {
+    const enabled = vdOrder(st).filter((vid) => st.vds[vid].enabled);
+    const nearest = enabled.sort((a, b) => Math.abs(idNum(a) - slot) - Math.abs(idNum(b) - slot) || idNum(a) - idNum(b))[0];
+    const all = nearest ? st.vds[nearest].z.filter((fid) => st.forms[fid]?.allVd) : [];
+    st.vds[id].enabled = true;
+    st.vds[id].z = [...all];
+  }
+  st.activeVd = id;
+  return exactPatch(st0, st);
+}
+
+// Design: D7.v6.slot-commands
+export function resetVdPatch(st0, id) {
+  if (!st0.vds?.[id]?.enabled) return null;
+  const enabled = vdOrder(st0).filter((vid) => st0.vds[vid].enabled);
+  if (enabled.length <= 1) return null;
+  const st = clone(st0);
+  st.undo = { reason: 'resetVd', snapshot: stateSnapshot(st0) };
+  const owned = Object.keys(st.forms).filter((fid) => st.forms[fid].vd === id);
+  for (const fid of owned) delete st.forms[fid];
+  for (const vd of Object.values(st.vds)) vd.z = vd.z.filter((fid) => !owned.includes(fid));
+  st.vds[id] = emptyVd(idNum(id), false, nextUniqueNumericLabel(st.vds, idNum(id), id));
+  if (st.activeVd === id) st.activeVd = enabled.find((vid) => vid !== id);
+  return exactPatch(st0, st);
+}
+
+// Design: D7.v6.slot-commands
+export function cloneVdPatch(st0, sourceId, targetId) {
+  if (!st0.vds?.[sourceId]?.enabled || !st0.vds?.[targetId] || st0.vds[targetId].enabled) return null;
+  const st = clone(st0);
+  const ids = st0.vds[sourceId].z.filter((id) => st0.forms[id]?.vd === sourceId && !st0.forms[id].allVd);
+  const idMap = new Map();
+  let next = Math.max(1, obj(st.seq).form | 0);
+  for (const oldId of ids) {
+    while (st.forms[`f${next}`]) next++;
+    const newId = `f${next++}`;
+    idMap.set(oldId, newId);
+    st.forms[newId] = { ...clone(st0.forms[oldId]), vd: targetId, allVd: false };
+  }
+  const all = st0.vds[sourceId].z.filter((id) => st0.forms[id]?.allVd);
+  st.vds[targetId].enabled = true;
+  st.vds[targetId].z = st0.vds[sourceId].z.map((id) => idMap.get(id) || (all.includes(id) ? id : null)).filter(Boolean);
+  st.activeVd = targetId;
+  st.seq.form = next;
+  return exactPatch(st0, st);
+}
+
+// Design: D7.v6.slot-commands
+export function setFormVisiblePatch(st, id, visible) {
+  if (!st.forms?.[id] || st.forms[id].visible === !!visible) return {};
+  return { forms: { [id]: { visible: !!visible } } };
+}
+
+export const __test = { exactPatch, normalRect, idNum, FORM_KEYS, ROOT_KEYS, VD_KEYS };

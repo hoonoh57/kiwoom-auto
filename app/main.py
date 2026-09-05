@@ -49,6 +49,32 @@ def node_delete(path: str):
     return store.delete(unquote(path))
 
 
+# Design: D4.v6.recovery-mode
+@app.get("/api/state/recovery")
+def state_recovery():
+    return store.recovery_status()
+
+
+# Design: D4.v6.recovery-mode
+@app.get("/api/state/recovery/raw")
+def state_recovery_raw():
+    try:
+        raw = store.recovery_raw()
+    except FileNotFoundError:
+        raise HTTPException(404, "state file not found")
+    return Response(content=raw, media_type="application/octet-stream",
+                    headers={"Content-Disposition": "attachment; filename=workspace.json"})
+
+
+# Design: D4.v6.recovery-mode
+@app.put("/api/state/recovery")
+def state_recovery_put(body: dict):
+    try:
+        return store.replace_recovery(body)
+    except (OSError, TypeError, ValueError) as exc:
+        raise HTTPException(500, str(exc))
+
+
 @app.get("/api/bars")
 def get_bars(code: str, tf: str, force: int = 0):
     if tf not in config.TFSEC:

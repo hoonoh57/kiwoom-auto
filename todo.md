@@ -69,14 +69,14 @@ REMEDIATION_REQUIRED
 branch       : main
 제품 기준선  : 750634d + Tranche 4 chart 안정화
 문서 tranche : 95d97a8 r6.2 APPROVED
-worktree     : Tranche 4 chart 안정화 구현·자동 검증 완료
+worktree     : Tranche 5 고정 슬롯·종목연동 구현·자동 검증 완료
 현재 STATE   : state/workspace.json schemaVersion 6
 목표 STATE   : schemaVersion 6
 설계 상태    : APPROVED (r6.2, 전체 D1~D14)
 OPEN         : 0
 게이트       : C1 완료, C2 완료, C3(T12) 완료, C4(APPROVED) 완료
 모델 운용    : gpt-5.6-sol high 유지; deterministic 저위험 구현 진입 전에 low 전환 가능 시점 고지
-다음 설계 ID : D7.v6.slot-commands, D7.v6.symbol-link, D10.v6.*
+다음 설계 ID : D7.v6.navigator, D7.v6.snapshot-import, D4.v6.recovery-mode
 ```
 
 ### Gate 0 — 코드 착수 전
@@ -125,12 +125,14 @@ OPEN         : 0
 
 ### Tranche 5 — UI 슬롯·링크 [D7.v6.slot-commands, D7.v6.symbol-link, D10.v6.*]
 
-- [ ] 상단을 8개 고정 슬롯으로 렌더하고 disabled 슬롯을 `+N`으로 표시한다.
-- [ ] add를 최저 disabled 슬롯 활성화로, delete를 확인형 reset으로 교체한다.
-- [ ] rename modal이 비교키 중복에서 닫히지 않고 STATE write 0이 되게 한다.
-- [ ] `vd|all`, `follow|pin`, `all|1..10` 종목연동을 단일 root patch로 구현한다.
-- [ ] U1~U6와 마지막 슬롯 보호 acceptance를 통과한다.
-- [ ] green 후 해당 tranche만 커밋하고 push한다.
+- [x] 상단을 8개 고정 슬롯으로 렌더하고 disabled 슬롯을 `+N`으로 표시한다.
+- [x] add를 최저 disabled 슬롯 활성화로, delete를 확인형 reset으로 교체한다.
+- [x] rename modal이 비교키 중복에서 닫히지 않고 STATE write 0이 되게 한다.
+- [x] `vd|all`, `follow|pin`, `all|1..10` 종목연동을 단일 root patch로 구현한다.
+- [x] U1~U6와 마지막 슬롯 보호 acceptance를 통과한다.
+- [x] green 후 해당 tranche만 커밋하고 push한다.
+
+- 검증: tests/ui-slots-v6.mjs — 8개 슬롯, +N 활성화, 중복 modal 유지, 고정 종목·그룹·범위 분리, 마지막 슬롯 보호 PASS. 실제 브라우저 시각 acceptance는 Tranche 7 잔여.
 
 ### Tranche 6 — 탐색·생산성·복구 [D7.v6.navigator, D7.v6.snapshot-import, D4.v6.recovery-mode]
 

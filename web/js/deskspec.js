@@ -372,7 +372,7 @@ export function activateSlotPatch(st0, slot) {
   if (!st.vds?.[id]) return null;
   if (!st.vds[id].enabled) {
     const enabled = vdOrder(st).filter((vid) => st.vds[vid].enabled);
-    const nearest = enabled.sort((a, b) => Math.abs(idNum(a) - slot) - Math.abs(idNum(b) - slot) || idNum(a) - idNum(b))[0];
+    const nearest = enabled.sort((a, b) => idNum(a) - idNum(b))[0];
     const all = nearest ? st.vds[nearest].z.filter((fid) => st.forms[fid]?.allVd) : [];
     st.vds[id].enabled = true;
     st.vds[id].z = [...all];
@@ -546,3 +546,20 @@ export function projectDeskChange(before0, after0, impact0) {
 }
 
 export const __test = { exactPatch, normalRect, idNum, FORM_KEYS, ROOT_KEYS, VD_KEYS };
+
+// Design: D7.v6.symbol-link
+export function symbolPatch(st, sourceId, code, screenCatalog) {
+  const source = st.forms[sourceId];
+  if (!source || !/^\d{6}$/.test(code)) return null;
+  const forms = { [sourceId]: { code } };
+  if (source.link === 'pin') return { forms };
+  const ids = Object.keys(st.forms).sort((a,b) => idNum(a)-idNum(b) || (a < b ? -1 : 1));
+  for (const id of ids) {
+    const target = st.forms[id];
+    if (id === sourceId || !st.vds[target.vd]?.enabled || target.link !== 'follow' || target.shareGroup !== source.shareGroup) continue;
+    if (st.symLink === 'vd' && target.vd !== source.vd) continue;
+    if (!screenCatalog.meta(target.screen).needCode) continue;
+    forms[id] = { code };
+  }
+  return { forms };
+}

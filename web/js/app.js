@@ -119,15 +119,10 @@ function toggleMaxForm(id) {
   else patch('forms/' + id, { winState: 'max', prevRect: { ...form.rect } });
 }
 
+// Design: D7.v6.symbol-link
 function setFormCode(sourceId, code) {
-  const source = st.forms[sourceId];
-  if (!source) return;
-  const forms = {};
-  for (const [id, form] of Object.entries(st.forms)) {
-    if (!screens.spec.meta(form.screen).needCode) continue;
-    if (id === sourceId || st.symLink === 'all' || form.vd === source.vd || form.allVd) forms[id] = { code };
-  }
-  patch('forms', forms);
+  const value = ds.symbolPatch(st, sourceId, code, screens.spec);
+  if (value) patch('', value);
 }
 
 function screenCtx(id) {
@@ -161,7 +156,7 @@ function onDeskPatch(event) {
 
 /* ---- 상단바 ---- */
 function renderTop() {
-  const key = JSON.stringify([ds.vdOrder(st).map((k) => [k, st.vds[k].label]), st.activeVd, st.symLink, st.globalOn]);
+  const key = JSON.stringify([ds.vdOrder(st).map((k) => [k, st.vds[k].label, st.vds[k].enabled]), st.activeVd, st.symLink, st.globalOn]);
   if (key === renderTop.key) return;
   renderTop.key = key;
 
@@ -170,19 +165,12 @@ function renderTop() {
   ds.vdOrder(st).forEach((id, i) => {
     const b = document.createElement('button');
     b.className = 'vdb' + (id === st.activeVd ? ' on' : '');
-    b.textContent = st.vds[id].label;
+    b.textContent = st.vds[id].enabled ? st.vds[id].label : `+${st.vds[id].slot}`;
     b.title = id + (i < ds.VD_HOTKEYS ? ` (Ctrl+${i + 1})` : '');
-    b.onclick = () => patch('', { activeVd: id });
+    b.onclick = () => activateSlot(st.vds[id].slot);
     b.oncontextmenu = (e) => { e.preventDefault(); vdMenu(id, e.clientX, e.clientY); };
     box.append(b);
   });
-  const add = document.createElement('button');
-  add.className = 'vdb add';
-  add.textContent = '+';
-  add.title = '가상화면 추가';
-  add.onclick = addVd;
-  box.append(add);
-
   const sl = $('#symlink');
   sl.textContent = st.symLink === 'all' ? '연동:전체' : '연동:VD';
   sl.onclick = () => patch('', { symLink: st.symLink === 'all' ? 'vd' : 'all' });
@@ -226,46 +214,42 @@ function closeForm(id) {
 }
 
 /* ---- VD 조작 ---- */
-function addVd() {
-  if (ds.VD_MAX && Object.keys(st.vds).length >= ds.VD_MAX) { bus.push('[VD+] 상한 도달'); return; }
-  const id = ds.nextVdId(st);
-  const label = ds.nextVdLabel(st);
-  patch('', { vds: { [id]: ds.defaultVd(label, ds.nextVdOrder(st)) }, activeVd: id });
-  bus.push(`[VD+] ${id} label=${label}`);
+// Design: D7.v6.slot-commands
+function activateSlot(slot) {
+  const value = ds.activateSlotPatch(st, slot);
+  if (value) patch('', value);
 }
-
+// Design: D7.v6.slot-commands
+function addVd() {
+  const id = ds.vdOrder(st).find(id => !st.vds[id].enabled);
+  if (!id) { bus.push('[VD+] 상한 도달'); return; }
+  activateSlot(st.vds[id].slot);
+}
+// Design: D7.v6.slot-commands
 async function delVd(id) {
-  const ids = ds.vdOrder(st);
-  if (ids.length <= 1) { bus.push('[VD-] 마지막 가상화면은 삭제할 수 없습니다'); return; }
-  const own = Object.keys(st.forms).filter((fid) => st.forms[fid].vd === id);
-  const ok = await askOk(`${st.vds[id].label} 삭제. 소속 자식폼 ${own.length}개도 함께 삭제합니다.`, '삭제');
-  if (!ok) { bus.push('[VD-] 취소 ' + id); return; }
-  const p = { vds: { [id]: ds.DEL }, forms: {} };
-  for (const fid of own) p.forms[fid] = ds.DEL;
-  for (const vid of ids) {
-    if (vid === id) continue;
-    p.vds[vid] = { z: (st.vds[vid].z || []).filter((x) => !own.includes(x)) };
-  }
-  if (st.activeVd === id) p.activeVd = ids.find((x) => x !== id);
-  delete st.vds[id];
-  await patch('', p);
-  bus.push(`[VD-] ${id} forms=${own.length}`);
+  if (!st.vds[id]?.enabled) return;
+  if (!ds.resetVdPatch(st, id)) { bus.push('[VD-] 마지막 가상화면은 초기화할 수 없습니다'); return; }
+  const own = Object.values(st.forms).filter(f => f.vd === id).length;
+  if (!await askOk(`${st.vds[id].label} 초기화. 소속 창 ${own}개를 삭제합니다.`, '초기화')) return;
+  const value = ds.resetVdPatch(st, id);
+  if (value) await patch('', value);
 }
 
 function vdMenu(id, x, y) {
   menuAt(x, y, [
     ['이름 변경', async () => {
-      const v = await askText('가상화면 이름', st.vds[id].label, 8);
-      if (!v) { bus.push('[VD~] 취소 ' + id); return; }
-      if (ds.hasVdLabel(st, v, id)) {
-        bus.push(`[VD~] 중복 이름 ${id} label=${v}`);
-        await tell(`이미 사용 중인 가상화면 이름입니다.\n${v}`);
-        return;
-      }
+      const v = await askText('가상화면 이름', st.vds[id].label, 8, (value) => {
+        const result = ds.validateVdLabel(st, id, value);
+        if (result.ok) return '';
+        const message = result.reason === 'duplicate' ? `중복 이름 ${value} (slot ${result.conflictSlot})` : '이름은 1~8자입니다.';
+        bus.push('[VD~] ' + message);
+        return message;
+      });
+      if (!v) return;
       patch('vds/' + id, { label: v });
       bus.push(`[VD~] ${id} label=${v}`);
     }],
-    ['삭제', () => delVd(id)],
+    ['초기화', () => delVd(id)],
   ]);
 }
 
@@ -278,8 +262,13 @@ function openMenu(id, x, y) {
       () => patch('forms/' + id, { allVd: !f.allVd })],
   ];
   for (const vid of ds.vdOrder(st)) {
-    if (vid === f.vd) continue;
+    if (vid === f.vd || !st.vds[vid].enabled) continue;
     items.push(['이동 -> ' + st.vds[vid].label, () => moveForm(id, vid)]);
+  }
+  // Design: D7.v6.symbol-link
+  items.push([f.link === 'pin' ? '종목연동 켜기' : '종목 고정', () => patch('forms/' + id, { link: f.link === 'pin' ? 'follow' : 'pin' })]);
+  for (const group of ['all', ...Array.from({length:10}, (_, i) => String(i + 1))]) {
+    items.push([`${f.shareGroup === group ? '✓ ' : ''}연동 그룹 ${group === 'all' ? '공통' : group}`, () => patch('forms/' + id, { shareGroup: group })]);
   }
   items.push(['닫기', () => closeForm(id)]);
   menuAt(x, y, items);
@@ -368,7 +357,8 @@ function modal(build) {
   });
 }
 
-function askText(title, value, maxLen) {
+// Design: D7.v6.slot-commands
+function askText(title, value, maxLen, validate) {
   return modal((box, end) => {
     const t = document.createElement('div');
     t.className = 'mttl';
@@ -378,12 +368,19 @@ function askText(title, value, maxLen) {
     inp.type = 'text';
     inp.value = value || '';
     inp.maxLength = maxLen || 32;
-    const ok = () => end(inp.value.trim() || null);
+    const error = document.createElement('div');
+    error.setAttribute('role', 'alert');
+    const ok = () => {
+      const value = inp.value.trim();
+      const message = validate ? validate(value) : '';
+      if (message) { error.textContent = message; inp.focus(); return; }
+      end(value || null);
+    };
     inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); ok(); } };
     const row = document.createElement('div');
     row.className = 'mrow';
     row.append(mkBtn('취소', '', () => end(null)), mkBtn('확인', 'on', ok));
-    box.append(t, inp, row);
+    box.append(t, inp, error, row);
     inp.focus();
     inp.select();
   });
@@ -468,7 +465,7 @@ function initKeys() {
     const id = ds.vdOrder(st)[n - 1];
     if (!id) return;
     e.preventDefault();
-    patch('', { activeVd: id });
+    activateSlot(n);
   });
 }
 

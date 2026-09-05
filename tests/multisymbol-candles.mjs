@@ -83,7 +83,8 @@ profile.items.candles2.props.baseValue = null;
 result = runtime.apply(profile, true, ctx, false);
 assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [['update', 'candles2']]);
 await Promise.resolve();
-assert.deepEqual(patches, [['candles2', { baseValue: 50, baseTime: 1 }]]);
+// [D5.v6.candles-compare] Derived comparison values never write STATE.
+assert.deepEqual(patches, []);
 
 const autoProfile = {
   panes: [{ id: 'main', label: 'main', h: 300 }],
@@ -116,7 +117,8 @@ assert.deepEqual(autoSeries[1].scaleOptions, { visible: true, autoScale: true })
 assert.equal(autoSeries[2].scaleOptions, undefined);
 autoRuntime.apply(autoProfile, true, ctx, true);
 autoRuntime.apply(autoProfile, true, ctx, true);
-assert.equal(engine.scrolls, 1);
+// [D5.v6.chart-range] Programmatic draw never scrolls.
+assert.equal(engine.scrolls || 0, 0);
 
 // [D3.v6.candle-source] Default candles inherit changed form inputs; explicit comparison stays pinned.
 const inherited = addons.defaults('candles', { id: 'candles1', form });
@@ -134,5 +136,16 @@ assert.deepEqual(followResult.ops.map(x => [x.op, x.id]), [['update', 'candles1'
 assert.equal(made[first].data[0].close, 50);
 assert.equal(made.length, first + 2);
 assert.deepEqual(addons.source('candles', followProfile.items.candles1, { form: { code: '000660', tf: '5m' } }), { code: '000660', tf: '5m' });
+
+// [D5.v6.candles-compare] Missing comparison data fails before allocating primitives.
+const candle = addons.get('candles');
+const invalidProps = candle.normalize({ props: { ...inherited, compareMode: 'indexed100' } }, {form, id:'candles9',axisSlot:0});
+const beforeInvalid = made.length;
+assert.throws(() => candle.ensure({ ...ctx, itemId:'candles9', dataFor:()=>({bars:[]}) }, invalidProps, 0), /CandleDataError\(candles9\)/);
+assert.equal(made.length,beforeInvalid);
+const compareHandle = candle.ensure({ ...ctx, itemId:'candles9' }, invalidProps, 0);
+candle.live({ ...ctx, itemId:'candles9', dataFor:()=>({liveBar:bar(3,150)}) },compareHandle,invalidProps);
+assert.equal(compareHandle.series[0].live.close,150);
+assert.deepEqual(patches,[]);
 
 console.log('[PASS] multi-symbol candles overlay/pane/locality/idempotence');

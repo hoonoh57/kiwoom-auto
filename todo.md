@@ -25,14 +25,14 @@
 ### 우선 작업 — 실제 키움 REST 전환 (2026-09-06)
 
 - 참조 저장소는 `hoonoh57/kiwoom-desk`로 정정됨. server/index.ts, src/api/KiwoomClient.ts, src/api/trSchema.ts 검토 완료.
-- 현재 자체 MockAdapter와 출처 없는 봉 캐시 때문에 모드만 변경하면 mock 데이터가 남을 수 있음.
+- 해결한 결함: 자체 MockAdapter와 출처 없는 봉 캐시 혼입. REST source별 캐시로 분리 완료.
 - [x] `design.md` REST 전환 범위는 사용자 `모두 진행`으로 승인되어 구현 완료.
 - [x] 로컬 인증 설정이 구성된 것을 재확인하고 키움 모의투자 서버의 실제 읽기 전용 조회를 검증했다. 키 값은 출력·커밋하지 않았다.
 - [x] 자체 MockAdapter 제거, REST 인증·TR·연속 조회·KST 변환, source별 v2 캐시 격리, 설정 상태 표시 완료.
 - [x] 실제 조회: 현재가·잔고 성공, tick/1m/5m/30m/1d/1w 각 600봉, 1M 501봉 성공. 요청 간격 1.2초에서 연속 조회 제한 해소. 외부 주문 요청 0건.
 - [x] Python 13개 테스트, 기존 JS 5개 검증 스크립트, check.py, diff 검사 통과.
 - [ ] 브라우저 시각 검증: 연결 가능한 브라우저 없음. 8077 health 및 데이터 API 응답만 확인.
-- 다음: REST 변경 커밋·push 후 Tranche 4 재개. 전체 ARCH PASS는 아직 아님.
+- REST 변경 098af42, 캔들 상속 수정 750634d 커밋·push 완료. 전체 ARCH PASS는 아직 아님.
 
 
 REMEDIATION_REQUIRED
@@ -67,16 +67,16 @@ REMEDIATION_REQUIRED
 
 ```text
 branch       : main
-제품 기준선  : 95d97a8 docs: approve multi-vd workspace v6 design
+제품 기준선  : 750634d + Tranche 4 chart 안정화
 문서 tranche : 95d97a8 r6.2 APPROVED
-worktree     : Tranche 3 ENGINE frame 구현·자동 검증 완료
-현재 STATE   : state/workspace.json schemaVersion 5
+worktree     : Tranche 4 chart 안정화 구현·자동 검증 완료
+현재 STATE   : state/workspace.json schemaVersion 6
 목표 STATE   : schemaVersion 6
 설계 상태    : APPROVED (r6.2, 전체 D1~D14)
 OPEN         : 0
 게이트       : C1 완료, C2 완료, C3(T12) 완료, C4(APPROVED) 완료
 모델 운용    : gpt-5.6-sol high 유지; deterministic 저위험 구현 진입 전에 low 전환 가능 시점 고지
-다음 설계 ID : D5.v6.chart-range, D5.v6.market-cache, D5.v6.candles-compare
+다음 설계 ID : D7.v6.slot-commands, D7.v6.symbol-link, D10.v6.*
 ```
 
 ### Gate 0 — 코드 착수 전
@@ -109,17 +109,19 @@ OPEN         : 0
 - [x] `snapRect`의 축별 후보·tie-break·할당 상한을 구현한다.
 - [x] pointer 이벤트 객체를 전달하고 Bridge가 trusted 입력만 raise하게 한다.
 - [x] z·위치 변경 시 contentSize callback 0, 크기 변경 시 batch당 callback 최대 1 테스트를 통과한다.
-- [ ] green 후 해당 tranche만 커밋하고 push한다.
+- [x] green 후 해당 tranche만 커밋하고 push한다.
 
 - 검증: `tests/frame-v6.mjs`, `tests/desk-bridge-v6.mjs`, 기존 STATE/projection/candles 테스트와 `check.py` PASS. 실제 브라우저 조작감은 Tranche 7에서 확인한다.
 
 ### Tranche 4 — ADDON chart 안정화 [D5.v6.chart-range, D5.v6.market-cache, D5.v6.candles-compare]
 
-- [ ] trusted wheel/pointer 표식이 있는 range callback만 barSpacing을 저장하게 한다.
-- [ ] 프로그램 setBarSpacing과 draw가 STATE write를 만들지 않는 테스트를 추가한다.
-- [ ] refCount/useSeq 기반 market data cache와 32-entry eviction을 구현한다.
-- [ ] 다종목 C1~C5와 다른 item operation 0을 재검증한다.
-- [ ] green 후 해당 tranche만 커밋하고 push한다.
+- [x] trusted wheel/pointer 표식이 있는 range callback만 barSpacing을 저장하게 한다.
+- [x] 프로그램 setBarSpacing과 draw가 STATE write를 만들지 않는 테스트를 추가한다.
+- [x] refCount/useSeq 기반 market data cache와 32-entry eviction을 구현한다.
+- [x] 다종목 C1~C5와 다른 item operation 0을 재검증한다.
+- [x] green 후 해당 tranche만 커밋하고 push한다.
+
+- 검증: chart-stability-v6 및 multisymbol-candles의 D5 회귀 검사, 기존 JS 검사와 Python 13개 테스트 PASS. 브라우저 실조작은 Tranche 7 잔여.
 
 ### Tranche 5 — UI 슬롯·링크 [D7.v6.slot-commands, D7.v6.symbol-link, D10.v6.*]
 

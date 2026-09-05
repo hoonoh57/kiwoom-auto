@@ -114,8 +114,9 @@ const candleColors = (id) => {
   return CANDLE_COLORS[((m ? Number(m[1]) : 1) - 1) % CANDLE_COLORS.length];
 };
 
-function candleData(data, p) {
+function candleData(data, p, id) {
   const bars = (data && data.bars) || [];
+  if (!bars.length) throw new Error(`CandleDataError(${id})`);
   if (p.compareMode === 'price') return { bars, baseValue: null, baseTime: null };
   let base = Number(p.baseValue);
   let baseTime = Number(p.baseTime) || null;
@@ -124,7 +125,7 @@ function candleData(data, p) {
     base = first && Number(first.close);
     baseTime = first ? first.time : baseTime;
   }
-  if (!(base > 0)) return { bars: [], baseValue: null, baseTime };
+  if (!(base > 0)) throw new Error(`CandleDataError(${id})`);
   const cv = p.compareMode === 'percent'
     ? (v) => (Number(v) / base - 1) * 100
     : (v) => (Number(v) / base) * 100;
@@ -133,15 +134,6 @@ function candleData(data, p) {
     baseValue: base,
     baseTime,
   };
-}
-
-function scheduleBase(ctx, h, d, p) {
-  if (p.compareMode === 'price' || p.baseValue > 0 || !(d.baseValue > 0) || h.basePending) return;
-  h.basePending = true;
-  queueMicrotask(() => {
-    h.basePending = false;
-    if (ctx.patchProps) ctx.patchProps({ baseValue: d.baseValue, baseTime: d.baseTime });
-  });
 }
 
 registry.set('candles', {
@@ -200,6 +192,7 @@ registry.set('candles', {
   },
   version: (ctx, p) => { const d = dataOf(ctx, p); return (d && d.barsHash) || '0'; },
   ensure(ctx, p, pane) {
+    const d = candleData(dataOf(ctx, p), p, ctx.itemId);
     const s = ctx.engine.addSeries('candlestick', {
       priceScaleId: p.scaleId, upColor: p.upColor, downColor: p.downColor, borderVisible: false,
       wickUpColor: p.upColor, wickDownColor: p.downColor,
@@ -207,26 +200,27 @@ registry.set('candles', {
         : { type: 'price', precision: 2, minMove: 0.01 },
     }, pane);
     if (p.visibleScale) ctx.engine.setSeriesScaleOptions(s, { visible: true, autoScale: true });
-    const d = candleData(dataOf(ctx, p), p);
     s.setData(d.bars);
-    const h = { series: [s], basePending: false };
-    scheduleBase(ctx, h, d, p);
+    const h = { series: [s] };
+    // Design: D5.v6.candles-compare
+    h.derivedBase = { baseValue: d.baseValue, baseTime: d.baseTime };
     return h;
   },
   update(ctx, h, p) {
+    const d = candleData(dataOf(ctx, p), p, ctx.itemId);
     h.series[0].applyOptions({ priceScaleId: p.scaleId, upColor: p.upColor, downColor: p.downColor,
       wickUpColor: p.upColor, wickDownColor: p.downColor,
       priceFormat: p.compareMode === 'price' ? { type: 'price' }
         : { type: 'price', precision: 2, minMove: 0.01 } });
     if (p.visibleScale) ctx.engine.setSeriesScaleOptions(h.series[0], { visible: true, autoScale: true });
-    const d = candleData(dataOf(ctx, p), p);
     h.series[0].setData(d.bars);
-    scheduleBase(ctx, h, d, p);
+    // Design: D5.v6.candles-compare
+    h.derivedBase = { baseValue: d.baseValue, baseTime: d.baseTime };
   },
   live(ctx, h, p) {
     const d = dataOf(ctx, p);
     if (!d || !d.liveBar) return;
-    const one = candleData({ bars: [d.liveBar] }, p).bars[0];
+    const one = candleData({ bars: [d.liveBar] }, { ...p, ...h.derivedBase }, ctx.itemId).bars[0];
     if (one) h.series[0].update(one);
   },
 });

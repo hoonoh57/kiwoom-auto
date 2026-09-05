@@ -18,7 +18,6 @@ export function activePanes(profile, globalOn, ctx, registry) {
 // Design: D7.v6.desired-diff
 export function createRuntime({ core: engine, registry, recorder } = {}) {
   const live = new Map();
-  let didInitialScroll = false;
   let seq = 0;
 
   const record = (op, id, kind, propsHash) => {
@@ -105,7 +104,7 @@ export function createRuntime({ core: engine, registry, recorder } = {}) {
         engine.setPaneStretch(panes.map((p) => p.h));
         if (view.barSpacing > 0) engine.setBarSpacing(view.barSpacing);
         engine.setAutoScale(view.autoScale !== false);
-        if (!didInitialScroll) { engine.scrollToRealTime(); didInitialScroll = true; }
+        // Design: D5.v6.chart-range — scrolling requires an explicit user command.
       }
       return { ops, panes };
     },

@@ -17,7 +17,9 @@ const arr = (v) => (Array.isArray(v) ? v : []);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 /* ---- 공용 피드 (code|tf 단위 공유) ---- */
+// Design: D5.v6.market-cache
 const feeds = new Map();
+let useSeq = 0;
 const keyOf = (code, tf) => code + '|' + tf;
 
 async function pull(key, force) {
@@ -35,6 +37,8 @@ async function pull(key, force) {
   } catch (e) {
     data = { bars: [], barsHash: 'err', liveBar: null, markers: [], ev: null, err: String(e) };
   }
+  if (feeds.get(key) !== fd) return;
+  data.bars = data.bars.slice(-1200);
   fd.data = data;
   for (const cb of fd.refs) cb(data);
 }
@@ -42,13 +46,19 @@ async function pull(key, force) {
 function subscribe(code, tf, cb) {
   const key = keyOf(code, tf);
   let fd = feeds.get(key);
-  if (!fd) { fd = { refs: new Set(), data: null }; feeds.set(key, fd); }
+  if (!fd) { fd = { refs: new Set(), data: null, useSeq: 0 }; feeds.set(key, fd); }
+  fd.useSeq = ++useSeq;
   fd.refs.add(cb);
   if (fd.data) cb(fd.data); else pull(key, false);
-  return () => { fd.refs.delete(cb); if (!fd.refs.size) feeds.delete(key); };
+  return () => {
+    fd.refs.delete(cb);
+    const idle = [...feeds.entries()].filter(([, entry]) => !entry.refs.size)
+      .sort((a, b) => a[1].useSeq - b[1].useSeq || (a[0] < b[0] ? -1 : 1));
+    for (let i = 0; i < idle.length - 32; i++) feeds.delete(idle[i][0]);
+  };
 }
 
-setInterval(() => { for (const k of [...feeds.keys()]) pull(k, false); }, 15000);
+setInterval(() => { for (const [k, fd] of feeds) if (fd.refs.size) pull(k, false); }, 15000);
 
 /* ---- body 스펙 ---- */
 const paneOf = (kind) => { const m = addons.meta(kind); return (m && m.pane) || 'main'; };
@@ -289,13 +299,30 @@ export const SCREEN = {
 
     syncFeeds(form);
 
+    // Design: D5.v6.chart-range
+    const scheduler = ctx.scheduler || { set: (fn, ms) => setTimeout(fn, ms), clear: (id) => clearTimeout(id) };
+    let rangeUserPending = false, expiry = null;
+    const clearRange = () => {
+      rangeUserPending = false;
+      scheduler.clear(h.tid);
+      scheduler.clear(expiry);
+    };
+    const markRange = (e) => {
+      if (!e.isTrusted || (e.type === 'pointerdown' && (!e.isPrimary || e.button !== 0))) return;
+      clearRange();
+      rangeUserPending = true;
+      expiry = scheduler.set(clearRange, 1500);
+    };
+    cwrap.addEventListener('wheel', markRange, { capture: true, passive: true });
+    cwrap.addEventListener('pointerdown', markRange, true);
     engine.onRangeChange(() => {
-      clearTimeout(h.tid);
-      h.tid = setTimeout(() => {
+      if (!rangeUserPending) return;
+      scheduler.clear(h.tid);
+      h.tid = scheduler.set(() => {
         const f = ctx.form();
-        if (!f) return;
         const bs = engine.getBarSpacing();
-        if (Math.abs((obj(f.body.view).barSpacing || 0) - bs) > 0.01) ctx.patchBody({ view: { barSpacing: bs } });
+        clearRange();
+        if (f && Math.abs((obj(f.body.view).barSpacing || 0) - bs) > 0.01) ctx.patchBody({ view: { barSpacing: bs } });
       }, 800);
     });
 
@@ -307,7 +334,9 @@ export const SCREEN = {
     h.stop = () => {
       for (const off of h.unsubs.values()) off();
       h.unsubs.clear();
-      clearTimeout(h.tid);
+      clearRange();
+      cwrap.removeEventListener('wheel', markRange, true);
+      cwrap.removeEventListener('pointerdown', markRange, true);
       engine.destroy();
       root.remove();
     };

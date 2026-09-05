@@ -234,9 +234,13 @@ export const SCREEN = {
     };
     proptree.renderAddBar(addw, [], cbs);
 
+    // Design: D7.v6.symbol-link
+    cin.onkeydown = (e) => {
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); cin.onchange(); }
+    };
     cin.onchange = () => {
       const v = cin.value.trim();
-      if (/^\d{6}$/.test(v)) ctx.setCode(v);
+      if (/^\d{6}$/.test(v)) { if (v !== ctx.form().code) ctx.setCode(v); }
       else cin.value = ctx.form().code;
     };
     tsel.onchange = () => ctx.patchForm({ tf: tsel.value });

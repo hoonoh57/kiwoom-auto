@@ -140,7 +140,7 @@ export function renderAddBar(root, panes, cb) {
           o.value = pair[0];
           input.append(o);
         }
-        input.value = value;
+        input.value = value ?? '';
       } else {
         input.type = f.t === 'text' ? 'text' : 'number';
         input.value = value || '';

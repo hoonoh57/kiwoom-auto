@@ -146,14 +146,15 @@ function scheduleBase(ctx, h, d, p) {
 
 registry.set('candles', {
   meta: { label: '캔들', pane: 'main', paneH: 95, auto: true, configureOnAdd: true,
-    summary: (it) => `${it.props.code || '상속'} ${it.props.tf || ''} ${it.props.placement === 'pane' ? '서브' : '중첩'}`.trim(),
+    summary: (it) => `${it.props.code || '상단 종목'} ${it.props.tf || '상단 주기'} ${it.props.placement === 'pane' ? '서브' : '중첩'}`.trim(),
     schema: [
-    { k: 'code', t: 'text', label: '종목코드', pattern: '^\\d{6}$', maxLength: 6, def: '', create: true,
-      patch: (v) => ({ code: v, baseTime: null, baseValue: null }) },
-    { k: 'tf', t: 'select', label: '주기', def: '1m', create: true, options: [
+    { k: 'code', t: 'text', label: '종목코드 (빈칸: 상단)', pattern: '^(?:\\d{6})?$', maxLength: 6, def: '', create: true,
+      patch: (v) => ({ code: v || null, baseTime: null, baseValue: null }) },
+    { k: 'tf', t: 'select', label: '주기', def: '', create: true, options: [
+      ['', '상단 주기'],
       ['tick', '틱'], ['1m', '1분'], ['5m', '5분'], ['30m', '30분'],
       ['1d', '일'], ['1w', '주'], ['1M', '월'],
-    ], patch: (v) => ({ tf: v, baseTime: null, baseValue: null }) },
+    ], patch: (v) => ({ tf: v || null, baseTime: null, baseValue: null }) },
     { k: 'placement', t: 'select', label: '표시', def: 'overlay', create: true,
       options: [['overlay', '오버레이'], ['pane', '서브차트']],
       patch: (v, x) => ({ placement: v,
@@ -171,7 +172,8 @@ registry.set('candles', {
   ] },
   defaults: (x) => {
     const colors = candleColors(x && x.id);
-    return { code: (x && x.form && x.form.code) || '', tf: (x && x.form && x.form.tf) || '1m',
+    // Design: D3.v6.candle-source
+    return { code: null, tf: null,
       placement: 'overlay', paneId: 'main', scaleId: x && x.id === 'candles1' ? 'right' : 'auto', compareMode: 'price',
       baseTime: null, baseValue: null, upColor: colors[0], downColor: colors[1] };
   },

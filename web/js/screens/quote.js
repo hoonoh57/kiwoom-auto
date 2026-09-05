@@ -24,9 +24,13 @@ export const SCREEN = {
     root.append(cin, tbl);
     host.append(root);
 
+    // Design: D7.v6.symbol-link
+    cin.onkeydown = (e) => {
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); cin.onchange(); }
+    };
     cin.onchange = () => {
       const v = cin.value.trim();
-      if (/^\d{6}$/.test(v)) ctx.setCode(v);
+      if (/^\d{6}$/.test(v)) { if (v !== ctx.form().code) ctx.setCode(v); }
       else cin.value = ctx.form().code;
     };
 

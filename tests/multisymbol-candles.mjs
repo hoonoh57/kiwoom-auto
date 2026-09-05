@@ -118,4 +118,21 @@ autoRuntime.apply(autoProfile, true, ctx, true);
 autoRuntime.apply(autoProfile, true, ctx, true);
 assert.equal(engine.scrolls, 1);
 
+// [D3.v6.candle-source] Default candles inherit changed form inputs; explicit comparison stays pinned.
+const inherited = addons.defaults('candles', { id: 'candles1', form });
+assert.equal(inherited.code, null);
+assert.equal(inherited.tf, null);
+const followProfile = structuredClone(profile);
+followProfile.items.candles1.props = inherited;
+const followRuntime = createRuntime({ core: engine, registry: addons });
+const first = made.length;
+followRuntime.apply(followProfile, true, ctx, false);
+assert.equal(made[first].data[0].close, 100);
+const changed = { ...ctx, form: { code: '035720', tf: '1m' } };
+const followResult = followRuntime.apply(followProfile, true, changed, false);
+assert.deepEqual(followResult.ops.map(x => [x.op, x.id]), [['update', 'candles1']]);
+assert.equal(made[first].data[0].close, 50);
+assert.equal(made.length, first + 2);
+assert.deepEqual(addons.source('candles', followProfile.items.candles1, { form: { code: '000660', tf: '5m' } }), { code: '000660', tf: '5m' });
+
 console.log('[PASS] multi-symbol candles overlay/pane/locality/idempotence');

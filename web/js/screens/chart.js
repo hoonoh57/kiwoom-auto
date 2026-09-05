@@ -183,7 +183,7 @@ export const SCREEN = {
     host.append(root);
 
     const engine = createEngine(cwrap);
-    const runtime = createRuntime(engine);
+    const runtime = createRuntime({ core: engine, registry: addons });
     const h = { root, engine, runtime, defaultKey: keyOf(form.code, form.tf),
                 dataByKey: new Map(), unsubs: new Map(), bodyHash: '', panes: [], tid: 0 };
 

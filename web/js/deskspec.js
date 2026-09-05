@@ -423,4 +423,126 @@ export function setFormVisiblePatch(st, id, visible) {
   return { forms: { [id]: { visible: !!visible } } };
 }
 
+function formEffective(st, form) {
+  return !!st.globalOn && form.visible !== false
+    && (form.allVd || form.vd === st.activeVd);
+}
+
+// Design: D9.v6.form-series
+export function zList(st0) {
+  const st = obj(st0);
+  const forms = obj(st.forms);
+  const active = obj(obj(st.vds)[st.activeVd]);
+  const effective = Object.keys(forms).filter((id) => formEffective(st, obj(forms[id])));
+  const wanted = new Set(effective);
+  const out = uniqueStrings(arr(active.z)).filter((id) => wanted.has(id));
+  for (const id of effective.sort(byId)) if (!out.includes(id)) out.push(id);
+  return out;
+}
+
+function desiredItem(st, id, order) {
+  const form = obj(obj(st.forms)[id]);
+  return {
+    id,
+    kind: form.screen,
+    enabled: true,
+    visible: true,
+    props: {
+      addonRaw: { body: clone(obj(form.body)), code: form.code ?? null, tf: form.tf ?? null },
+      frame: {
+        rect: clone(obj(form.rect)),
+        winState: form.winState,
+        title: form.title,
+        shareGroup: form.shareGroup,
+      },
+    },
+    order,
+  };
+}
+
+// Design: D9.v6.form-series
+export function effectiveForms(st) {
+  return zList(st).map((id, order) => desiredItem(st, id, order));
+}
+
+function orderChange(before, after) {
+  const oldZ = arr(obj(obj(before).vds)[obj(before).activeVd]?.z);
+  const newZ = arr(obj(obj(after).vds)[obj(after).activeVd]?.z);
+  if (JSON.stringify(oldZ) === JSON.stringify(newZ)) return { mode: 'keep', id: null };
+  if (oldZ.length === newZ.length && newZ.length) {
+    const id = newZ[newZ.length - 1];
+    const oldRest = oldZ.filter((x) => x !== id);
+    const newRest = newZ.slice(0, -1);
+    if (oldZ.includes(id) && JSON.stringify(oldRest) === JSON.stringify(newRest)) return { mode: 'raise', id };
+  }
+  return { mode: 'rebuild', id: null };
+}
+
+// Design: D4.v6.write-queue
+export function impactOfPatch(before0, path0, body0) {
+  const before = obj(before0);
+  const path = String(path0 || '').split('/').filter(Boolean);
+  const body = obj(body0);
+  const impact = { mode: 'delta', ids: [], order: { mode: 'keep', id: null } };
+  const ids = new Set();
+  const scope = () => { impact.mode = 'scope'; };
+  const rebuild = () => { impact.order = { mode: 'auto', id: null }; };
+
+  if (!path.length) {
+    if ('schemaVersion' in body) scope();
+    if ('activeVd' in body || 'globalOn' in body) { scope(); rebuild(); }
+    for (const [id, value] of Object.entries(obj(body.forms))) {
+      ids.add(id);
+      if (value === DEL || !before.forms?.[id]) rebuild();
+      else if (isObject(value) && Object.prototype.hasOwnProperty.call(value, 'allVd')) { scope(); rebuild(); }
+    }
+    for (const value of Object.values(obj(body.vds))) {
+      if (!isObject(value)) continue;
+      if (Object.prototype.hasOwnProperty.call(value, 'enabled')) scope();
+      if (Object.prototype.hasOwnProperty.call(value, 'z')) rebuild();
+    }
+  } else if (path[0] === 'forms') {
+    if (path[1]) {
+      ids.add(path[1]);
+      if (path[2] === 'allVd' || (!path[2] && Object.prototype.hasOwnProperty.call(body, 'allVd'))) { scope(); rebuild(); }
+    } else {
+      for (const [id, value] of Object.entries(body)) {
+        ids.add(id);
+        if (value === DEL || !before.forms?.[id]) rebuild();
+        else if (isObject(value) && Object.prototype.hasOwnProperty.call(value, 'allVd')) { scope(); rebuild(); }
+      }
+    }
+  } else if (path[0] === 'vds' && path[1]) {
+    if (path[2] === 'enabled' || (!path[2] && Object.prototype.hasOwnProperty.call(body, 'enabled'))) scope();
+    if (path[2] === 'z' || (!path[2] && Object.prototype.hasOwnProperty.call(body, 'z'))) rebuild();
+  } else if (path[0] === 'activeVd' || path[0] === 'globalOn') {
+    scope(); rebuild();
+  }
+  impact.ids = [...ids].sort(byId);
+  return impact;
+}
+
+// Design: D7.v6.desired-diff
+export function projectDeskChange(before0, after0, impact0) {
+  const before = obj(before0);
+  const after = obj(after0);
+  const impact = obj(impact0);
+  const requestedOrder = obj(impact.order);
+  const order = requestedOrder.mode === 'auto' ? orderChange(before, after)
+    : { mode: requestedOrder.mode || 'keep', id: requestedOrder.id ?? null };
+  const beforeIds = new Set(zList(before));
+  const afterItems = effectiveForms(after);
+  const afterIds = new Set(afterItems.map((item) => item.id));
+  const affected = impact.mode === 'scope'
+    ? new Set([...Object.keys(obj(before.forms)), ...Object.keys(obj(after.forms))])
+    : new Set(arr(impact.ids));
+  if (order.mode === 'rebuild') {
+    for (const id of beforeIds) affected.add(id);
+    for (const id of afterIds) affected.add(id);
+  }
+  const selected = afterItems.filter((item) => impact.mode === 'initial' || affected.has(item.id));
+  const absentIds = [...affected].filter((id) => !afterIds.has(id)).sort(byId).reverse();
+  return { mode: impact.mode || 'delta', items: selected, absentIds, order };
+}
+
 export const __test = { exactPatch, normalRect, idNum, FORM_KEYS, ROOT_KEYS, VD_KEYS };

@@ -110,6 +110,15 @@ def replace_recovery(root):
         backup = None
         if config.STATE_PATH.exists():
             old = config.STATE_PATH.read_bytes()
+            try:
+                previous = json.loads(old.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError):
+                previous = None
+            if (isinstance(previous, dict) and previous.get("schemaVersion") == 5
+                    and root.get("schemaVersion") == 6):
+                migration_backup = config.STATE_PATH.parent / "workspace.v5.bak"
+                if not migration_backup.exists():
+                    _exclusive_copy(migration_backup, old)
             backup_path = _backup_path("workspace.broken", ".json")
             _exclusive_copy(backup_path, old)
             backup = backup_path.name

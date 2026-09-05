@@ -3,6 +3,7 @@
 import * as ds from './deskspec.js';
 import * as screens from './screens.js';
 import { createDesk } from './desk.js';
+import { createFrame as createFrameEngine } from './frame.js';
 import * as bus from './bus.js';
 
 const $ = (s) => document.querySelector(s);
@@ -10,6 +11,7 @@ let st = {};
 let env = { tf: ['1m'], tfLabel: {} };
 let desk = null;
 let rid = 0;
+let pendingChanges = [];
 
 /* ---- 단일 쓰기 경로: 서버 반영은 직렬 큐로만 나간다 ---- */
 const jget = (p) => fetch('/api/node?path=' + encodeURIComponent(p)).then((r) => r.json());
@@ -29,6 +31,15 @@ function scheduleRender() {
 async function jpatch(p, b) {
   const r = await fetch('/api/node?path=' + encodeURIComponent(p), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+  });
+  const txt = await r.text();
+  if (!r.ok) throw new Error(`${r.status} ${txt.slice(0, 160).replace(/\s+/g, ' ')}`);
+  return txt;
+}
+
+async function jreplaceState(body) {
+  const r = await fetch('/api/state/recovery', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const txt = await r.text();
   if (!r.ok) throw new Error(`${r.status} ${txt.slice(0, 160).replace(/\s+/g, ' ')}`);
@@ -67,8 +78,10 @@ function mergeLocal(dst, src) {
 }
 
 function patch(path, body) {
+  const before = structuredClone(st);
   const n = nodeAt(st, path, true);
   if (n) mergeLocal(n, body);
+  pendingChanges.push(ds.projectDeskChange(before, st, ds.impactOfPatch(before, path, body)));
   scheduleRender();
   return enqueue(async () => {
     try { await jpatch(path, body); }
@@ -77,6 +90,99 @@ function patch(path, body) {
 }
 
 const bounds = () => { const d = $('#desk'); return { w: d.clientWidth, h: d.clientHeight }; };
+
+function mergeChangeSets(changes) {
+  const items = new Map();
+  const absent = new Set();
+  let mode = 'delta';
+  let order = { mode: 'keep', id: null };
+  const weight = { keep: 0, raise: 1, rebuild: 2 };
+  for (const change of changes) {
+    if (change.mode === 'scope' || change.mode === 'initial') mode = change.mode;
+    for (const id of change.absentIds || []) { absent.add(id); items.delete(id); }
+    for (const item of change.items || []) { items.set(item.id, item); absent.delete(item.id); }
+    if ((weight[change.order?.mode] || 0) >= (weight[order.mode] || 0)) order = change.order;
+  }
+  return { mode, items: [...items.values()], absentIds: [...absent], order };
+}
+
+function raiseForm(id) {
+  const vd = st.vds[st.activeVd];
+  if (!vd || !vd.z.includes(id) || vd.z[vd.z.length - 1] === id) return;
+  patch('vds/' + st.activeVd, { z: [...vd.z.filter((value) => value !== id), id] });
+}
+
+function toggleMaxForm(id) {
+  const form = st.forms[id];
+  if (!form) return;
+  if (form.winState === 'max') patch('forms/' + id, { winState: 'normal', rect: { ...form.prevRect } });
+  else patch('forms/' + id, { winState: 'max', prevRect: { ...form.rect } });
+}
+
+function setFormCode(sourceId, code) {
+  const source = st.forms[sourceId];
+  if (!source) return;
+  const forms = {};
+  for (const [id, form] of Object.entries(st.forms)) {
+    if (!screens.spec.meta(form.screen).needCode) continue;
+    if (id === sourceId || st.symLink === 'all' || form.vd === source.vd || form.allVd) forms[id] = { code };
+  }
+  patch('forms', forms);
+}
+
+function screenCtx(id) {
+  return {
+    id, env, globalOn: () => !!st.globalOn, form: () => st.forms[id] || null,
+    patchForm: (value) => patch('forms/' + id, value),
+    patchBody: (value) => patch('forms/' + id + '/body', value),
+    setCode: (code) => setFormCode(id, code), log: bus.push,
+  };
+}
+
+const frameApi = {
+  createFrame(host, id, rect, on) {
+    const form = st.forms[id];
+    const inner = createFrameEngine(host, {
+      minSize: form ? screens.spec.meta(form.screen).minSize : undefined,
+      on: {
+        focus: on.focus, geo: on.geo, min: on.min, max: on.max, close: on.close,
+        menu: (x, y) => on.menu({ x, y }),
+      },
+    });
+    inner.setRect(rect);
+    return { id, inner };
+  },
+  setFrameRect: (handle, rect) => handle.inner.setRect(rect),
+  setFrameState: (handle, state) => handle.inner.setState(state),
+  setFrameZ: (handle, z) => handle.inner.setZ(z),
+  setFrameVisible: (handle, visible) => { handle.inner.el.style.display = visible ? '' : 'none'; },
+  setFrameTitle(handle) {
+    const form = st.forms[handle.id];
+    if (form) handle.inner.setTitle(screens.spec.title(form), screens.spec.sub(form));
+  },
+  getContentHost: (handle) => handle.inner.body,
+  destroyFrame: (handle) => handle.inner.destroy(),
+};
+
+const screenBridge = {
+  normalize: (_kind, raw) => structuredClone(raw),
+  ensure(kind, _ctx, id, props) {
+    const form = { ...st.forms[id], code: props.code, tf: props.tf, body: props.body };
+    return { id, inner: screens.spec.mount(kind, _ctx.contentHost, form, screenCtx(id)) };
+  },
+  update(kind, _ctx, handle) { screens.spec.update(kind, handle.inner, st.forms[handle.id], screenCtx(handle.id)); },
+  remove(kind, _ctx, handle) { screens.spec.unmount(kind, handle && handle.inner); },
+};
+
+function onDeskPatch(event) {
+  if (!event) return;
+  if (event.type === 'focus') raiseForm(event.id);
+  else if (event.type === 'geo') patch('forms/' + event.id, { rect: event.value, prevRect: event.value });
+  else if (event.type === 'min') patch('forms/' + event.id, { winState: 'min' });
+  else if (event.type === 'max') toggleMaxForm(event.id);
+  else if (event.type === 'close') closeForm(event.id);
+  else if (event.type === 'menu') openMenu(event.id, event.value.x, event.value.y);
+}
 
 /* ---- 상단바 ---- */
 function renderTop() {
@@ -115,8 +221,10 @@ function renderTop() {
 function render() {
   renderTop();
   if (!desk) return;
-  const r = desk.apply();
-  if (r.ops.length) bus.push(`[DESK] ${st.activeVd} live=${desk.mounted()} ops=${r.ops.length} ${r.ops.join(',')}`);
+  const changes = pendingChanges.splice(0);
+  if (!changes.length) return;
+  const r = desk.apply(mergeChangeSets(changes));
+  if (r.events.length) bus.push(`[DESK] ${st.activeVd} live=${desk.mounted()} ops=${r.events.length} ${r.events.map((e) => e.op[0] + e.id).join(',')}`);
 }
 
 /* ---- 폼 조작 ---- */
@@ -124,7 +232,7 @@ function addForm(kind, seed) {
   const meta = screens.spec.meta(kind);
   if (meta.single) {
     const dup = Object.entries(st.forms).find(([, f]) => f.screen === kind && (f.vd === st.activeVd || f.allVd));
-    if (dup) { bus.push('[FORM=] 이미 존재 ' + kind); desk.raise(dup[0]); return; }
+    if (dup) { bus.push('[FORM=] 이미 존재 ' + kind); raiseForm(dup[0]); return; }
   }
   const id = ds.nextFormId(st);
   const form = ds.defaultForm(st, kind, { ...(seed || {}), vd: st.activeVd }, screens.spec, bounds());
@@ -399,7 +507,7 @@ async function boot() {
   if ((raw.schemaVersion | 0) < ds.PROJECT_SCHEMA) {
     const m = ds.migrate(raw, screens.spec, bounds());
     if (m.patch) {
-      await jpatch('', m.patch);
+      await jreplaceState(m.st);
       bus.push(`[MIGRATE] v${raw.schemaVersion || 0}->${ds.PROJECT_SCHEMA} forms=${m.forms} dropped=${m.dropped}`);
     }
     raw = m.st;
@@ -411,9 +519,13 @@ async function boot() {
     bus.push('[RECONCILE] ' + (rc.dropped.length ? 'dropped=' + rc.dropped.join(',') : 'fixed'));
   }
 
-  desk = createDesk($('#desk'), $('#tabs'), screens.spec, {
-    env, getState: () => st, patch, close: closeForm, menu: openMenu, log: bus.push,
+  desk = createDesk({
+    host: $('#desk'), catalog: screenBridge, frame: frameApi,
+    patch: onDeskPatch, log: bus.push,
   });
+  pendingChanges.push(ds.projectDeskChange({}, st, {
+    mode: 'initial', ids: Object.keys(st.forms), order: { mode: 'rebuild', id: null },
+  }));
 
   renderQuick();
   initSearch();

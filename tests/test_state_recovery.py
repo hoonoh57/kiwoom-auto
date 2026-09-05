@@ -55,6 +55,13 @@ class StateRecoveryTests(unittest.TestCase):
         store.save_migrated_v6({"schemaVersion": 6, "second": True})
         self.assertEqual(backup.read_bytes(), original)
 
+    def test_recovery_replace_of_v5_also_creates_migration_backup(self):
+        original = b'{"schemaVersion":5,"keep":"migration"}'
+        config.STATE_PATH.write_bytes(original)
+        store.replace_recovery({"schemaVersion": 6})
+        self.assertEqual((config.STATE_PATH.parent / "workspace.v5.bak").read_bytes(), original)
+        self.assertEqual((config.STATE_PATH.parent / "workspace.broken.json").read_bytes(), original)
+
     def test_backup_or_save_failure_never_changes_original(self):
         original = b'{"damaged":true}'
         config.STATE_PATH.write_bytes(original)

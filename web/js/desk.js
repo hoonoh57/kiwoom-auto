@@ -1,157 +1,235 @@
-/* desk.js - BRIDGE: 폼 단위 diff(ensure/update/remove) + z-order + geometry.
-   화면종류 이름을 모른다. cat 어댑터와 needCode 플래그만 본다. */
+/* desk.js - feature-blind BRIDGE for form desired/live reconciliation. */
 
-import { createFrame } from './frame.js';
-
-function hash(o) {
-  const s = JSON.stringify(o);
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
-  return h.toString(16);
+function canonicalError(path) {
+  const error = new TypeError(`CanonicalValueError(${path})`);
+  error.name = 'CanonicalValueError';
+  throw error;
 }
 
-const idNum = (s) => { const m = /(\d+)$/.exec(s || ''); return m ? +m[1] : 0; };
+function canonicalText(value, path = '$') {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) canonicalError(path);
+    return JSON.stringify(Object.is(value, -0) ? 0 : value);
+  }
+  if (Array.isArray(value)) {
+    const parts = [];
+    for (let index = 0; index < value.length; index++) {
+      if (!(index in value)) canonicalError(`${path}[${index}]`);
+      parts.push(canonicalText(value[index], `${path}[${index}]`));
+    }
+    return '[' + parts.join(',') + ']';
+  }
+  if (!value || typeof value !== 'object') canonicalError(path);
+  return '{' + Object.keys(value).sort()
+    .map((key) => JSON.stringify(key) + ':' + canonicalText(value[key], `${path}.${key}`)).join(',') + '}';
+}
 
-export function createDesk(canvas, tabbar, cat, io) {
+// Design: D8.v6.canonical-hash
+export function canonicalHash(value) {
+  const bytes = new TextEncoder().encode(canonicalText(value));
+  let hash = 0x811c9dc5;
+  for (const byte of bytes) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+const idNum = (s) => { const m = /(\d+)$/.exec(String(s || '')); return m ? +m[1] : 0; };
+const byId = (a, b) => idNum(a) - idNum(b) || String(a).localeCompare(String(b));
+const copy = (value) => JSON.parse(JSON.stringify(value));
+
+function call(api, name, ...args) {
+  if (!api || typeof api[name] !== 'function') throw new TypeError(`BridgeContractError(${name})`);
+  return api[name](...args);
+}
+
+// Design: D7.v6.desired-diff
+export function createDesk({ host, catalog, frame, patch, log, recorder, scheduler } = {}) {
   const live = new Map();
-  let tabHash = '';
+  let eventSeq = 0;
+  let destroyed = false;
 
-  const bounds = () => ({ w: canvas.clientWidth, h: canvas.clientHeight });
-  const rectOf = (f, b) => (f.winState === 'max' ? { x: 0, y: 0, w: b.w, h: b.h } : f.rect);
+  const report = (stage, id, error) => {
+    if (typeof log === 'function') log(`[DESK!] ${stage} ${id} ${error}`);
+  };
+  const record = (op, id, kind, propsHash) => {
+    const event = { seq: ++eventSeq, op, id, kind, propsHash };
+    if (typeof recorder === 'function') recorder(event);
+    else if (recorder && typeof recorder.record === 'function') recorder.record(event);
+    return event;
+  };
+  const send = (type, id, value) => {
+    if (typeof patch === 'function') patch({ type, id, value });
+  };
+  const destroyOne = (id, cur, events) => {
+    live.delete(id);
+    try { call(catalog, 'remove', cur.kind, cur.context, cur.addonHandle); } catch (error) { report('remove', id, error); }
+    try { call(frame, 'destroyFrame', cur.frameHandle); } catch (error) { report('destroy', id, error); }
+    events.push(record('remove', id, cur.kind, cur.propsHash));
+  };
 
-  // 가시성은 forms에서 계산한다. z는 순서 힌트로만 쓴다.
-  function zList(st) {
-    const vid = st.activeVd;
-    if (!st.vds[vid]) return [];
-    const z = (st.vds[vid].z || []);
-    const rank = (id) => { const i = z.indexOf(id); return i < 0 ? 1e9 + idNum(id) : i; };
-    return Object.keys(st.forms)
-      .filter((id) => st.forms[id].vd === vid || st.forms[id].allVd)
-      .sort((a, b) => rank(a) - rank(b));
-  }
-
-  function raise(id) {
-    const st = io.getState();
-    const v = st.vds[st.activeVd];
-    if (!v) return;
-    const z = v.z || [];
-    if (z[z.length - 1] === id) return;
-    io.patch('vds/' + st.activeVd, { z: [...z.filter((x) => x !== id), id] });
-  }
-
-  function toggleMax(id) {
-    const st = io.getState();
-    const f = st.forms[id];
-    if (!f) return;
-    if (f.winState === 'max') io.patch('forms/' + id, { winState: 'normal', rect: { ...f.prevRect } });
-    else io.patch('forms/' + id, { winState: 'max', prevRect: { ...f.rect } });
-  }
-
-  function setCode(srcId, code) {
-    const st = io.getState();
-    const src = st.forms[srcId];
-    if (!src) return;
-    const p = {};
-    for (const [id, f] of Object.entries(st.forms)) {
-      if (!cat.meta(f.screen).needCode) continue;
-      const linked = st.symLink === 'all' || f.vd === src.vd || f.allVd;
-      if (id === srcId || linked) p[id] = { code };
+  function ensureOne(item, events) {
+    const raw = item.props?.addonRaw || {};
+    const meta = item.props?.frame || {};
+    let normalized;
+    let propsHash;
+    try {
+      normalized = call(catalog, 'normalize', item.kind, raw);
+      propsHash = canonicalHash(normalized);
+    } catch (error) {
+      report('normalize', item.id, error);
+      return null;
     }
-    io.patch('forms', p);
-  }
-
-  function ctxFor(id) {
-    return {
-      id,
-      env: io.env,
-      globalOn: () => !!io.getState().globalOn,
-      form: () => io.getState().forms[id] || null,
-      patchForm: (p) => io.patch('forms/' + id, p),
-      patchBody: (p) => io.patch('forms/' + id + '/body', p),
-      setCode: (code) => setCode(id, code),
-      log: io.log,
-    };
-  }
-
-  function ensure(id, f, b) {
-    const meta = cat.meta(f.screen);
-    const frame = createFrame(canvas, {
-      minSize: meta.minSize,
-      on: {
-        focus: (e) => { io.log('[FOCUS] ' + id + ' ' + ((e && e.target && e.target.className) || '?')); raise(id); },
-        geo: (r) => io.patch('forms/' + id, { rect: r, prevRect: r }),
-        min: () => io.patch('forms/' + id, { winState: 'min' }),
-        max: () => toggleMax(id),
-        close: () => io.close(id),
-        menu: (x, y) => io.menu(id, x, y),
-        live: () => { const c = live.get(id); if (c) cat.resize(c.kind, c.handle); },
-      },
-    });
-    frame.setRect(rectOf(f, b));
-    const handle = cat.mount(f.screen, frame.body, f, ctxFor(id));
-    return { kind: f.screen, frame, handle, dataHash: '', geoHash: '' };
-  }
-
-  function renderTabs(st, ids) {
-    const mins = ids.filter((id) => st.forms[id].winState === 'min');
-    const h = hash(mins.map((id) => [id, cat.title(st.forms[id])]));
-    if (h === tabHash) return;
-    tabHash = h;
-    tabbar.innerHTML = '';
-    for (const id of mins) {
-      const b = document.createElement('button');
-      b.className = 'tab';
-      b.type = 'button';
-      b.textContent = cat.title(st.forms[id]);
-      b.onclick = () => { io.patch('forms/' + id, { winState: 'normal' }); raise(id); };
-      tabbar.append(b);
-    }
-  }
-
-  function apply() {
-    const st = io.getState();
-    if (!st || !st.forms || !st.vds) return { ops: [] };
-    const b = bounds();
-    const ids = zList(st);
-    const want = new Set(ids);
-    const ops = [];
-
-    for (const [id, cur] of [...live.entries()]) {
-      const f = st.forms[id];
-      if (want.has(id) && f && cur.kind === f.screen) continue;
-      live.delete(id);   // 먼저 지운다: 이후 예외가 나도 재시도 루프에 빠지지 않는다
-      try { cat.unmount(cur.kind, cur.handle); } catch (e) { io.log('[DESK!] unmount ' + id + ' ' + e); }
-      try { cur.frame.destroy(); } catch (e) { io.log('[DESK!] destroy ' + id + ' ' + e); }
-      ops.push('-' + id);
-    }
-
-    ids.forEach((id, i) => {
-      const f = st.forms[id];
-      let cur = live.get(id);
-      let fresh = false;
-      if (!cur) { cur = ensure(id, f, b); live.set(id, cur); ops.push('+' + id); fresh = true; }
-      const dh = hash({ c: f.code, t: f.tf, y: f.body, n: f.title, a: f.allVd, g: st.globalOn });
-      const gh = hash({ r: rectOf(f, b), s: f.winState });   // z 제외
-      if (cur.dataHash !== dh) {
-        cur.frame.setTitle(cat.title(f), cat.sub(f));
-        cat.update(f.screen, cur.handle, f, ctxFor(id));
-        cur.dataHash = dh;
-        if (!fresh) ops.push('~' + id);
+    const geo = { rect: copy(meta.rect || {}), winState: meta.winState || 'normal' };
+    const geoHash = canonicalHash(geo);
+    const titleHash = canonicalHash({ shareGroup: meta.shareGroup ?? null, title: meta.title ?? null });
+    let frameHandle;
+    try {
+      frameHandle = call(frame, 'createFrame', host, item.id, geo.rect, {
+        focus: (event) => { if (event?.isTrusted === true) send('focus', item.id, event); },
+        geo: (rect) => send('geo', item.id, rect),
+        min: () => send('min', item.id),
+        max: () => send('max', item.id),
+        close: () => send('close', item.id),
+        menu: (point) => send('menu', item.id, point),
+      });
+      call(frame, 'setFrameTitle', frameHandle, meta.title ?? '', meta.shareGroup ?? 'all');
+      call(frame, 'setFrameState', frameHandle, geo.winState, null);
+      call(frame, 'setFrameVisible', frameHandle, true);
+      call(frame, 'setFrameZ', frameHandle, item.order | 0);
+      const context = {
+        id: item.id,
+        contentHost: call(frame, 'getContentHost', frameHandle),
+        patch: (value) => send('addon', item.id, value),
+        log,
+        scheduler,
+      };
+      const addonHandle = call(catalog, 'ensure', item.kind, context, item.id, normalized);
+      const cur = {
+        kind: item.kind, props: normalized, propsHash, geoHash, titleHash,
+        order: item.order | 0, zIdx: item.order | 0, frameHandle, addonHandle, context, error: null,
+      };
+      live.set(item.id, cur);
+      events.push(record('ensure', item.id, item.kind, propsHash));
+      return cur;
+    } catch (error) {
+      report('ensure', item.id, error);
+      if (frameHandle) {
+        try { call(frame, 'destroyFrame', frameHandle); } catch (destroyError) { report('destroy', item.id, destroyError); }
       }
-      if (cur.zIdx !== i) { cur.frame.setZ(i); cur.zIdx = i; if (!fresh) ops.push('z' + id); }
-      if (cur.geoHash !== gh) {
-        cur.frame.setRect(rectOf(f, b));
-        cur.frame.setState(f.winState);
-        cat.resize(f.screen, cur.handle);
-        cur.geoHash = gh;
-        if (!fresh) ops.push('g' + id);
-      }
-      cur.frame.setActive(i === ids.length - 1 && f.winState !== 'min');
-    });
-
-    renderTabs(st, ids);
-    return { ops };
+      return null;
+    }
   }
 
-  return { apply, raise, toggleMax, setCode, mounted: () => live.size };
+  function updateOne(item, cur, events) {
+    const raw = item.props?.addonRaw || {};
+    const meta = item.props?.frame || {};
+    let next;
+    let propsHash;
+    try {
+      next = call(catalog, 'normalize', item.kind, raw);
+      propsHash = canonicalHash(next);
+    } catch (error) {
+      report('normalize', item.id, error);
+      return;
+    }
+    const geo = { rect: copy(meta.rect || {}), winState: meta.winState || 'normal' };
+    const geoHash = canonicalHash(geo);
+    const titleHash = canonicalHash({ shareGroup: meta.shareGroup ?? null, title: meta.title ?? null });
+    const propsChanged = cur.propsHash !== propsHash;
+    const geoChanged = cur.geoHash !== geoHash;
+    const titleChanged = cur.titleHash !== titleHash;
+    const orderChanged = cur.order !== (item.order | 0);
+    if (!(propsChanged || geoChanged || titleChanged || orderChanged)) return;
+    if (propsChanged) {
+      try { call(catalog, 'update', item.kind, cur.context, cur.addonHandle, cur.props, next); }
+      catch (error) { report('update', item.id, error); return; }
+      cur.props = next;
+      cur.propsHash = propsHash;
+    }
+    if (titleChanged) {
+      try { call(frame, 'setFrameTitle', cur.frameHandle, meta.title ?? '', meta.shareGroup ?? 'all'); }
+      catch (error) { report('title', item.id, error); }
+      cur.titleHash = titleHash;
+    }
+    if (geoChanged) {
+      try {
+        call(frame, 'setFrameRect', cur.frameHandle, geo.rect);
+        call(frame, 'setFrameState', cur.frameHandle, geo.winState, null);
+      } catch (error) { report('geometry', item.id, error); }
+      cur.geoHash = geoHash;
+    }
+    cur.order = item.order | 0;
+    events.push(record('update', item.id, item.kind, cur.propsHash));
+  }
+
+  function apply(changeSet0) {
+    if (destroyed) throw new Error('InvalidDeskHandle');
+    const changeSet = changeSet0 || { mode: 'delta', items: [], absentIds: [], order: { mode: 'keep', id: null } };
+    const events = [];
+    const items = [...(changeSet.items || [])].sort((a, b) => byId(a.id, b.id));
+    const byDesiredId = new Map(items.map((item) => [item.id, item]));
+    const removals = new Set(changeSet.absentIds || []);
+    for (const item of items) {
+      const cur = live.get(item.id);
+      if (cur && cur.kind !== item.kind) removals.add(item.id);
+    }
+    for (const id of [...removals].sort(byId).reverse()) {
+      const cur = live.get(id);
+      if (cur) destroyOne(id, cur, events);
+    }
+    for (const item of items) {
+      let cur = live.get(item.id);
+      if (!cur) cur = ensureOne(item, events);
+      else updateOne(item, cur, events);
+    }
+
+    const order = changeSet.order || { mode: 'keep', id: null };
+    if (order.mode === 'raise') {
+      const cur = live.get(order.id);
+      if (cur) {
+        const max = Math.max(-1, ...[...live.values()].map((entry) => entry.zIdx));
+        try { call(frame, 'setFrameZ', cur.frameHandle, max + 1); } catch (error) { report('z', order.id, error); }
+        cur.zIdx = max + 1;
+        cur.order = max + 1;
+        if (!events.some((event) => event.id === order.id && event.op !== 'remove')) {
+          events.push(record('update', order.id, cur.kind, cur.propsHash));
+        }
+      }
+    } else if (order.mode === 'rebuild') {
+      const ordered = [...live.entries()].sort((a, b) => {
+        const ai = byDesiredId.get(a[0])?.order ?? a[1].order;
+        const bi = byDesiredId.get(b[0])?.order ?? b[1].order;
+        return ai - bi || byId(a[0], b[0]);
+      });
+      ordered.forEach(([id, cur], index) => {
+        if (cur.zIdx === index) return;
+        try { call(frame, 'setFrameZ', cur.frameHandle, index); } catch (error) { report('z', id, error); }
+        cur.zIdx = index;
+        cur.order = index;
+        if (!events.some((event) => event.id === id && event.op !== 'remove')) {
+          events.push(record('update', id, cur.kind, cur.propsHash));
+        }
+      });
+    }
+    return { events };
+  }
+
+  function snapshot() {
+    return [...live.entries()].sort((a, b) => byId(a[0], b[0])).map(([id, cur]) => ({
+      id, kind: cur.kind, propsHash: cur.propsHash, geoHash: cur.geoHash,
+      order: cur.order, zIdx: cur.zIdx, error: cur.error,
+    }));
+  }
+
+  function destroy() {
+    if (destroyed) return;
+    const events = [];
+    for (const id of [...live.keys()].sort(byId).reverse()) destroyOne(id, live.get(id), events);
+    destroyed = true;
+  }
+
+  return { apply, mounted: () => live.size, snapshot, destroy };
 }

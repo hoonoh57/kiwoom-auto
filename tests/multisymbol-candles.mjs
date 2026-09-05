@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRuntime } from '../web/js/runtime.js';
+import * as addons from '../web/js/addons.js';
 
 const made = [];
 const removed = [];
@@ -48,7 +49,7 @@ const profile = {
   order: ['candles1', 'candles2'], view: {},
 };
 
-const runtime = createRuntime(engine);
+const runtime = createRuntime({ core: engine, registry: addons });
 let result = runtime.apply(profile, true, ctx, false);
 assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [['ensure', 'candles1'], ['ensure', 'candles2']]);
 assert.equal(made[0].options.priceScaleId, 'right');
@@ -103,7 +104,7 @@ const autoProfile = {
   order: ['candles1', 'candles2', 'candles3'], view: {},
 };
 const madeBeforeAuto = made.length;
-const autoRuntime = createRuntime(engine);
+const autoRuntime = createRuntime({ core: engine, registry: addons });
 result = autoRuntime.apply(autoProfile, true, ctx, false);
 assert.deepEqual(result.ops.map((x) => [x.op, x.id]), [
   ['ensure', 'candles1'], ['ensure', 'candles2'], ['ensure', 'candles3'],

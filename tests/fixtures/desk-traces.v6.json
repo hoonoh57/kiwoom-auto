@@ -1,0 +1,50 @@
+{
+ "hashVectors": {
+  "C1": "3298dbdc",
+  "C2": "0ec095d6",
+  "C3": "295232e7",
+  "G1": "77a5bd29",
+  "G1Move": "553e87d1",
+  "P1": "e7416481",
+  "P1Body": "5ef9dc43",
+  "P1Code": "1e0ca168"
+ },
+ "semantic": {
+  "T1": [
+   {
+    "id": "f1",
+    "kind": "chart",
+    "op": "ensure",
+    "propsHash": "e7416481",
+    "seq": 1
+   }
+  ],
+  "T3": [
+   {
+    "id": "f500",
+    "kind": "chart",
+    "op": "remove",
+    "propsHash": "e7416481",
+    "seq": 1
+   }
+  ],
+  "T8": [
+   {
+    "id": "f1",
+    "kind": "chart",
+    "op": "update",
+    "propsHash": "e7416481",
+    "seq": 1
+   }
+  ],
+  "T11": [
+   {
+    "id": "f1",
+    "kind": "chart",
+    "op": "update",
+    "propsHash": "5ef9dc43",
+    "seq": 1
+   }
+  ]
+ }
+}

@@ -1,29 +1,11 @@
-import * as addons from './addons.js';
+import { canonicalHash } from './desk.js';
 
-function stable(o) {
-  if (o === null || typeof o === 'string' || typeof o === 'boolean') return JSON.stringify(o);
-  if (typeof o === 'number') {
-    if (!Number.isFinite(o)) throw new TypeError('non-finite number in props');
-    return JSON.stringify(Object.is(o, -0) ? 0 : o);
-  }
-  if (Array.isArray(o)) return '[' + o.map(stable).join(',') + ']';
-  if (typeof o !== 'object') throw new TypeError('unsupported value in props');
-  return '{' + Object.keys(o).sort().map((k) => JSON.stringify(k) + ':' + stable(o[k])).join(',') + '}';
-}
-
-function hash(o) {
-  const s = stable(o);
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h.toString(16).padStart(8, '0');
-}
-
-export function activePanes(profile, globalOn, ctx) {
+export function activePanes(profile, globalOn, ctx, registry) {
   const used = new Set();
   for (const id of profile.order) {
     const it = profile.items[id];
     if (!it || !globalOn || !it.enabled || !it.visible) continue;
-    const impl = addons.get(it.kind);
+    const impl = registry.get(it.kind);
     if (!impl) continue;
     const props = impl.normalize(it, { id, form: ctx && ctx.form, axisSlot: 0 });
     used.add(props.paneId || it.props.paneId || 'main');
@@ -33,19 +15,31 @@ export function activePanes(profile, globalOn, ctx) {
   return [...used].map((id) => known.get(id) || { id, label: id, h: id === 'main' ? 300 : 120 });
 }
 
-export function createRuntime(engine) {
+// Design: D7.v6.desired-diff
+export function createRuntime({ core: engine, registry, recorder } = {}) {
   const live = new Map();
   let didInitialScroll = false;
+  let seq = 0;
+
+  const record = (op, id, kind, propsHash) => {
+    const event = { seq: ++seq, op, id, kind, propsHash };
+    if (typeof recorder === 'function') recorder(event);
+    else if (recorder && typeof recorder.record === 'function') recorder.record(event);
+    return event;
+  };
+  const report = (ctx, stage, id, error) => {
+    if (ctx && typeof ctx.log === 'function') ctx.log(`[RUNTIME!] ${stage} ${id} ${error}`);
+  };
 
   function desired(profile, globalOn, ctx) {
-    const panes = activePanes(profile, globalOn, ctx);
+    const panes = activePanes(profile, globalOn, ctx, registry);
     const idx = new Map(panes.map((p, i) => [p.id, i]));
     const slots = new Map();
     const out = [];
     for (const id of profile.order) {
       const it = profile.items[id];
       if (!it || !(globalOn && it.enabled && it.visible)) continue;
-      const impl = addons.get(it.kind);
+      const impl = registry.get(it.kind);
       if (!impl) continue;
       const slotKey = it.kind + '|' + (it.props.paneId || 'main');
       const slot = slots.get(slotKey) || 0;
@@ -54,7 +48,7 @@ export function createRuntime(engine) {
       const pane = idx.get(props.paneId || it.props.paneId || 'main') ?? 0;
       const version = impl.version ? impl.version(ctx, props) : (ctx.barsHash || '0');
       out.push({ id, kind: it.kind, props, pane, version,
-                 propsHash: hash({ kind: it.kind, props, pane }) });
+                 propsHash: canonicalHash({ kind: it.kind, props, pane }) });
     }
     out.sort((a, b) => a.pane - b.pane);
     return { want: out, panes };
@@ -66,21 +60,23 @@ export function createRuntime(engine) {
       const { want, panes } = desired(profile, globalOn, ctx);
       const wantIds = new Set(want.map((w) => w.id));
 
-      for (const [id, cur] of [...live.entries()]) {
-        if (!wantIds.has(id)) {
-          addons.get(cur.kind).remove(ctx, cur.handle);
-          live.delete(id);
-          ops.push({ op: 'remove', id, kind: cur.kind, propsHash: cur.propsHash });
-        }
+      const gone = [...live.entries()].filter(([id]) => !wantIds.has(id))
+        .sort((a, b) => String(b[0]).localeCompare(String(a[0]), undefined, { numeric: true }));
+      for (const [id, cur] of gone) {
+        live.delete(id);
+        try { registry.get(cur.kind).remove(ctx, cur.handle); }
+        catch (error) { report(ctx, 'remove', id, error); }
+        ops.push(record('remove', id, cur.kind, cur.propsHash));
       }
       engine.trimPanes(panes.length);
 
       for (const w of want) {
         const cur = live.get(w.id);
         if (cur && (cur.kind !== w.kind || cur.pane !== w.pane)) {
-          addons.get(cur.kind).remove(ctx, cur.handle);
           live.delete(w.id);
-          ops.push({ op: 'remove', id: w.id, kind: cur.kind, propsHash: cur.propsHash });
+          try { registry.get(cur.kind).remove(ctx, cur.handle); }
+          catch (error) { report(ctx, 'remove', w.id, error); }
+          ops.push(record('remove', w.id, cur.kind, cur.propsHash));
         }
       }
       for (const w of want) {
@@ -88,16 +84,19 @@ export function createRuntime(engine) {
         const itemCtx = { ...ctx, itemId: w.id,
           patchProps: (p) => { if (ctx.patchItem) ctx.patchItem(w.id, p); } };
         if (!cur) {
-          const handle = addons.get(w.kind).ensure(itemCtx, w.props, w.pane);
+          let handle;
+          try { handle = registry.get(w.kind).ensure(itemCtx, w.props, w.pane); }
+          catch (error) { report(ctx, 'ensure', w.id, error); continue; }
           live.set(w.id, { kind: w.kind, pane: w.pane, props: w.props,
             propsHash: w.propsHash, version: w.version, handle });
-          ops.push({ op: 'ensure', id: w.id, kind: w.kind, propsHash: w.propsHash });
+          ops.push(record('ensure', w.id, w.kind, w.propsHash));
         } else if (cur.propsHash !== w.propsHash || cur.version !== w.version) {
-          addons.get(w.kind).update(itemCtx, cur.handle, w.props);
+          try { registry.get(w.kind).update(itemCtx, cur.handle, w.props); }
+          catch (error) { report(ctx, 'update', w.id, error); continue; }
           cur.props = w.props;
           cur.propsHash = w.propsHash;
           cur.version = w.version;
-          ops.push({ op: 'update', id: w.id, kind: w.kind, propsHash: w.propsHash });
+          ops.push(record('update', w.id, w.kind, w.propsHash));
         }
       }
 
@@ -114,7 +113,17 @@ export function createRuntime(engine) {
       for (const [id, cur] of live.entries()) {
         const itemCtx = { ...ctx, itemId: id,
           patchProps: (p) => { if (ctx.patchItem) ctx.patchItem(id, p); } };
-        addons.get(cur.kind).live(itemCtx, cur.handle, cur.props);
+        registry.get(cur.kind).live(itemCtx, cur.handle, cur.props);
+      }
+    },
+    mounted: () => live.size,
+    snapshot: () => [...live.entries()].map(([id, cur]) => ({ id, kind: cur.kind, propsHash: cur.propsHash, pane: cur.pane })),
+    destroy(ctx = {}) {
+      for (const [id, cur] of [...live.entries()].reverse()) {
+        live.delete(id);
+        try { registry.get(cur.kind).remove(ctx, cur.handle); }
+        catch (error) { report(ctx, 'remove', id, error); }
+        record('remove', id, cur.kind, cur.propsHash);
       }
     },
   };

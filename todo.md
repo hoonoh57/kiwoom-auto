@@ -50,14 +50,14 @@ REMEDIATION_REQUIRED
 branch       : main
 제품 기준선  : 95d97a8 docs: approve multi-vd workspace v6 design
 문서 tranche : 95d97a8 r6.2 APPROVED
-worktree     : Tranche 1 STATE v6 구현
+worktree     : Tranche 2 BRIDGE 정합성 구현
 현재 STATE   : state/workspace.json schemaVersion 5
 목표 STATE   : schemaVersion 6
 설계 상태    : APPROVED (r6.2, 전체 D1~D14)
 OPEN         : 0
 게이트       : C1 완료, C2 완료, C3(T12) 완료, C4(APPROVED) 완료
 모델 운용    : gpt-5.6-sol high 유지; deterministic 저위험 구현 진입 전에 low 전환 가능 시점 고지
-다음 설계 ID : D3.v6.*, D4.v6.*, D7.v6.slot-commands
+다음 설계 ID : D7.v6.desired-diff, D8.v6.*, D9.v6.*, D11.v6.event-shape
 ```
 
 ### Gate 0 — 코드 착수 전
@@ -78,11 +78,11 @@ OPEN         : 0
 
 ### Tranche 2 — BRIDGE 정합성 [D7.v6.desired-diff, D7.v6.z-list, D8.v6.*, D9.v6.*]
 
-- [ ] `desk.js` desired가 globalOn/slot enabled/visible/allVd/activeVd 공식을 정확히 사용하게 한다.
-- [ ] unmount 전 live.delete, kind 교체, 결정적 순서, z-only setZ를 구현한다.
-- [ ] 독립 reference canonical hash fixture와 A5 recorder event를 구현한다.
-- [ ] T1~T11 semantic trace와 N=1000 locality/idempotence를 통과한다.
-- [ ] green 후 해당 tranche만 커밋하고 push한다.
+- [x] STATE projection이 globalOn/slot enabled/visible/allVd/activeVd 공식을 적용하고 `desk.js`에는 generic change-set만 전달하게 했다.
+- [x] unmount 전 live.delete, kind 교체, 결정적 순서, z-only setZ를 구현했다.
+- [x] 독립 reference canonical hash fixture와 A5 recorder event를 구현했다.
+- [x] T1~T11 semantic trace와 N=1000 locality/idempotence를 통과했다.
+- [x] green 상태의 Tranche 2 커밋으로 반영하고 push한다.
 
 ### Tranche 3 — ENGINE frame [D6.v6.frame-api, D7.v6.z-list]
 

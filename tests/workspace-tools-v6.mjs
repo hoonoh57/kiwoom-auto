@@ -1,0 +1,28 @@
+// Design: D7.v6.snapshot-import, D7.v6.navigator, D4.v6.recovery-mode
+import assert from 'node:assert/strict';
+import * as ds from '../web/js/deskspec.js';
+const merge=(dst,src)=>{for(const [k,v] of Object.entries(src)){if(v===ds.DEL)delete dst[k];else if(v&&typeof v==='object'&&!Array.isArray(v)&&dst[k]&&typeof dst[k]==='object')merge(dst[k],v);else dst[k]=structuredClone(v);}return dst;};
+const st=ds.defaultStateV6();
+const original=structuredClone(st);
+merge(st,ds.saveSnapshotPatch(st,'작업 1'));
+assert.equal(st.seq.snapshot,2);
+assert.equal(ds.saveSnapshotPatch(st,' 작업 1 '),null);
+st.vds.vd1.label='다른 이름';
+merge(st,ds.restoreSnapshotPatch(st,'s1'));
+assert.equal(st.vds.vd1.label,original.vds.vd1.label);
+assert.equal(st.undo.reason,'restoreSnapshot');
+merge(st,ds.undoPatch(st));assert.equal(st.vds.vd1.label,'다른 이름');assert.equal(st.undo,null);
+const pkg=ds.exportWorkspace(st);assert.equal(pkg.state.undo,null);
+const target=ds.defaultStateV6();merge(target,ds.importWorkspacePatch(target,pkg));
+assert.equal(target.vds.vd1.label,'다른 이름');
+assert.equal(target.undo.reason,'importWorkspace');
+assert.throws(()=>ds.importWorkspacePatch(target,{...pkg,version:9}));
+const bad=structuredClone(pkg);bad.state.vds.vd2.label=bad.state.vds.vd1.label;
+assert.throws(()=>ds.importWorkspacePatch(target,bad));
+assert.equal(pkg.state.undo,null);
+const cat={meta:()=>({no:'0615',label:'차트'})};
+target.forms={f2:{vd:'vd1',screen:'chart',code:'000660',visible:false,winState:'normal'},f1:{vd:'vd1',screen:'chart',code:'005930',visible:true,winState:'min'}};
+target.vds.vd1.z=['f1','f2'];
+assert.deepEqual(ds.listForms(target,[],'',cat).map(f=>[f.id,f.status]),[['f1','minimized'],['f2','hidden']]);
+assert.deepEqual(ds.listForms(target,[],'000660',cat).map(f=>f.id),['f2']);
+console.log('[PASS] D7 snapshots/import/undo and navigator order/status');

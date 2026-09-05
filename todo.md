@@ -83,7 +83,7 @@ REMEDIATION_REQUIRED
 branch       : main
 제품 기준선  : 750634d + Tranche 4 chart 안정화
 문서 tranche : 95d97a8 r6.2 APPROVED
-worktree     : Tranche 5 고정 슬롯·종목연동 구현·자동 검증 완료
+worktree     : Tranche 6 탐색·생산성·복구 UI 구현, 자동 검증 완료; 브라우저 acceptance 잔여
 현재 STATE   : state/workspace.json schemaVersion 6
 목표 STATE   : schemaVersion 6
 설계 상태    : APPROVED (r6.2, 전체 D1~D14)
@@ -150,13 +150,16 @@ OPEN         : 0
 
 ### Tranche 6 — 탐색·생산성·복구 [D7.v6.navigator, D7.v6.snapshot-import, D4.v6.recovery-mode]
 
-- [ ] 전체 화면 탐색기와 슬롯별 visible count/error dot을 구현한다.
-- [ ] `Ctrl+1`~`Ctrl+8`, `Ctrl+K` 명령 팔레트를 구현한다.
-- [ ] 빈 슬롯 VD 복제와 name snapshot CRUD를 구현한다.
-- [ ] 1단계 undo와 workspace JSON import/export 검증·diff 확인 modal을 구현한다.
-- [ ] 부팅 전 recovery status 확인과 FATAL 복구 화면을 recovery API에 연결한다.
+- [x] 전체 화면 탐색기와 슬롯별 visible count/error dot을 구현한다.
+- [x] `Ctrl+1`~`Ctrl+8`, `Ctrl+K` 명령 팔레트를 구현한다.
+- [x] 빈 슬롯 VD 복제와 name snapshot CRUD를 구현한다.
+- [x] 1단계 undo와 workspace JSON import/export 검증·diff 확인 modal을 구현한다.
+- [x] 부팅 전 recovery status 확인과 FATAL 복구 화면을 recovery API에 연결한다.
 - [ ] U7~U13과 취소 경로 STATE write 0을 통과한다.
-- [ ] green 후 해당 tranche만 커밋하고 push한다.
+- [x] green 후 해당 tranche만 커밋하고 push한다.
+
+- 자동 검증: workspace-tools-v6의 snapshot/import/undo, 검색·정렬·상태 검증 PASS. 현재 사용자 workspace export/import 왕복 검증 PASS. 큰 화면의 정상 좌표를 기본 viewport clamp로 오판하던 검증 결함 수정.
+- 실제 사용자 상태를 snapshot/import/undo 테스트로 변경하지 않았다. 브라우저 U7~U13 acceptance는 아직 남아 있다.
 
 ### Tranche 7 — 전체 acceptance
 

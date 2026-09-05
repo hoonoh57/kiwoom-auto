@@ -26,7 +26,7 @@ const source=fs.readFileSync('web/js/app.js','utf8');
 const nodes=new Map(['#vds','#symlink','#globalOn'].map(key=>[key,new El()]));
 const activated=[],patches=[];
 vm.runInNewContext(source.slice(source.indexOf('function renderTop()'),source.indexOf('\nfunction render()'))+'\nrenderTop();',{
- st,ds,document:{createElement:()=>new El()},$:key=>nodes.get(key),activateSlot:slot=>activated.push(slot),vdMenu(){},patch:(...args)=>patches.push(args)
+ st,ds,desk:null,document:{createElement:()=>new El()},$:key=>nodes.get(key),activateSlot:slot=>activated.push(slot),vdMenu(){},patch:(...args)=>patches.push(args)
 });
 assert.equal(nodes.get('#vds').children.length,8);
 assert.equal(nodes.get('#vds').children[2].textContent,'+3');
@@ -34,7 +34,7 @@ nodes.get('#vds').children[2].onclick(); assert.deepEqual(activated,[3]);
 
 let box=new El(), ended=[];
 vm.runInNewContext(source.slice(source.indexOf('function askText('),source.indexOf('\nfunction askOk('))+"\naskText('name','',8, value=>ds.validateVdLabel(st,'vd1',value).ok?'':'duplicate');",{
- st,ds,document:{createElement:()=>new El()},modal:build=>build(box,v=>ended.push(v)),mkBtn:(label,cls,fn)=>({label,onclick:fn})
+ st,ds,desk:null,document:{createElement:()=>new El()},modal:build=>build(box,v=>ended.push(v)),mkBtn:(label,cls,fn)=>({label,onclick:fn})
 });
 const [,input,error,row]=box.children;
 input.value=st.vds.vd2.label; row.children[1].onclick();

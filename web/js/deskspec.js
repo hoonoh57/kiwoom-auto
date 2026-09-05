@@ -563,3 +563,67 @@ export function symbolPatch(st, sourceId, code, screenCatalog) {
   }
   return { forms };
 }
+// Design: D7.v6.navigator
+export function listForms(st, deskSnapshot, query, screenCatalog) {
+  const mounted = new Map(deskSnapshot.map(row => [row.id, row]));
+  const q = labelKey(query);
+  return Object.entries(st.forms).filter(([,f]) => st.vds[f.vd]?.enabled).map(([id,f]) => {
+    const meta = screenCatalog.meta(f.screen);
+    const live = mounted.get(id);
+    return {id, ...f, slot:st.vds[f.vd].slot, vdLabel:st.vds[f.vd].label,
+      label:f.title || meta.label, no:meta.no,
+      status:live?.error ? 'error' : !f.visible ? 'hidden' : f.winState === 'min' ? 'minimized' : live ? 'mounted' : 'inactive'};
+  }).filter(f => labelKey([f.no,f.label,f.code,f.id,f.vdLabel].join(' ')).includes(q))
+    .sort((a,b) => a.slot-b.slot || st.vds[a.vd].z.indexOf(a.id)-st.vds[b.vd].z.indexOf(b.id) || idNum(a.id)-idNum(b.id) || (a.id < b.id ? -1 : 1));
+}
+
+// Design: D7.v6.snapshot-import
+export function saveSnapshotPatch(st, name) {
+  name = String(name).trim();
+  if (!name || [...name].length > 32 || Object.values(st.snapshots).some(s => labelKey(s.name) === labelKey(name))) return null;
+  const id = 's' + st.seq.snapshot;
+  return { snapshots: { [id]: { name, ...stateSnapshot(st) } }, seq: { snapshot: st.seq.snapshot + 1 } };
+}
+function restoreActive(st, snapshot, reason) {
+  const next = { ...clone(st), ...stateSnapshot(snapshot) };
+  next.seq.form = Math.max(st.seq.form, ...Object.keys(next.forms).map(id => idNum(id)+1));
+  next.undo = reason ? { reason, snapshot:stateSnapshot(st) } : null;
+  return exactPatch(st, next);
+}
+// Design: D7.v6.snapshot-import
+export function restoreSnapshotPatch(st, id) {
+  return st.snapshots[id] ? restoreActive(st, st.snapshots[id], 'restoreSnapshot') : null;
+}
+// Design: D7.v6.snapshot-import
+export function undoPatch(st) { return st.undo ? restoreActive(st, st.undo.snapshot, null) : null; }
+// Design: D7.v6.snapshot-import
+export function exportWorkspace(st) {
+  return { format:'kiwoom-auto-workspace', version:1, state:{ ...clone(st), undo:null } };
+}
+// Import validates stored geometry independently of the current viewport.
+function packageBounds(st) {
+  let w=1280,h=720;
+  for(const f of Object.values(st.forms || {})) for(const r of [f.rect,f.prevRect]) {
+    if(r && Number.isFinite(r.x+r.w) && Number.isFinite(r.y+r.h)){w=Math.max(w,r.x+r.w);h=Math.max(h,r.y+r.h);}
+  }
+  return {w,h};
+}
+// Design: D7.v6.snapshot-import
+export function importWorkspacePatch(st, pkg) {
+  if (!pkg || pkg.format !== 'kiwoom-auto-workspace' || pkg.version !== 1 || pkg.state?.schemaVersion !== PROJECT_SCHEMA) throw new Error('InvalidWorkspacePackage');
+  const source = pkg.state;
+  const result = reconcileInternal(source, {bounds:packageBounds(source)});
+  if (!result.st || result.changed) throw new Error('InvalidWorkspaceState');
+  const names = new Set();
+  for (const [id,snapshot] of Object.entries(source.snapshots)) {
+    if (!/^s[1-9][0-9]*$/.test(id) || !isObject(snapshot) || typeof snapshot.name !== 'string' || !snapshot.name.trim() || [...snapshot.name].length > 32 || names.has(labelKey(snapshot.name))) throw new Error('InvalidSnapshot');
+    names.add(labelKey(snapshot.name));
+    const candidate={...clone(source),...stateSnapshot(snapshot),snapshots:{},undo:null};
+    if(reconcileInternal(candidate,{bounds:packageBounds(candidate)}).changed)throw new Error('InvalidSnapshotState');
+  }
+  const next = { ...clone(st), ...stateSnapshot(source), snapshots:clone(source.snapshots) };
+  next.seq.form = Math.max(st.seq.form, source.seq.form, ...Object.keys(source.forms).map(id=>idNum(id)+1));
+  next.seq.snapshot = Math.max(st.seq.snapshot, source.seq.snapshot, ...Object.keys(source.snapshots).map(id=>idNum(id)+1));
+  next.undo = {reason:'importWorkspace',snapshot:stateSnapshot(st)};
+  return exactPatch(st,next);
+}

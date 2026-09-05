@@ -156,7 +156,7 @@ function onDeskPatch(event) {
 
 /* ---- 상단바 ---- */
 function renderTop() {
-  const key = JSON.stringify([ds.vdOrder(st).map((k) => [k, st.vds[k].label, st.vds[k].enabled]), st.activeVd, st.symLink, st.globalOn]);
+  const key = JSON.stringify([ds.vdOrder(st).map((k) => [k, st.vds[k].label, st.vds[k].enabled]), st.activeVd, st.symLink, st.globalOn, Object.entries(st.forms).map(([id,f])=>[id,f.vd,f.visible]), desk?.snapshot().map(f=>[f.id,f.error])]);
   if (key === renderTop.key) return;
   renderTop.key = key;
 
@@ -169,6 +169,11 @@ function renderTop() {
     b.title = id + (i < ds.VD_HOTKEYS ? ` (Ctrl+${i + 1})` : '');
     b.onclick = () => activateSlot(st.vds[id].slot);
     b.oncontextmenu = (e) => { e.preventDefault(); vdMenu(id, e.clientX, e.clientY); };
+    if (st.vds[id].enabled) {
+      const count=Object.values(st.forms).filter(f=>f.vd===id && f.visible).length;
+      const badge=document.createElement('span');badge.className='vd-count';badge.textContent=String(count);b.append(badge);
+      if(desk?.snapshot().some(row=>row.error && st.forms[row.id]?.vd===id)){const dot=document.createElement('span');dot.className='vd-error';dot.textContent='●';b.append(dot);}
+    }
     box.append(b);
   });
   const sl = $('#symlink');
@@ -183,10 +188,17 @@ function renderTop() {
 
 function render() {
   renderTop();
+  // Design: D7.v6.navigator — minimized restore controls are STATE commands.
+  const tabs=$('#tabs');tabs.replaceChildren();
+  for(const id of ds.zList(st)) {
+    const f=st.forms[id];if(f.winState!=='min')continue;
+    tabs.append(mkBtn(f.title||screens.spec.title(f),'',()=>{patch('forms/'+id,{winState:'normal'});raiseForm(id);}));
+  }
   if (!desk) return;
   const changes = pendingChanges.splice(0);
   if (!changes.length) return;
   const r = desk.apply(mergeChangeSets(changes));
+  renderTop();
   if (r.events.length) bus.push(`[DESK] ${st.activeVd} live=${desk.mounted()} ops=${r.events.length} ${r.events.map((e) => e.op[0] + e.id).join(',')}`);
 }
 
@@ -460,12 +472,117 @@ function renderQuick() {
 function initKeys() {
   window.addEventListener('keydown', (e) => {
     if (!e.ctrlKey || e.altKey || e.shiftKey) return;
+    if (e.key.toLowerCase() === 'k') { e.preventDefault(); openCommandPalette(); return; }
     const n = +e.key;
     if (!(n >= 1 && n <= ds.VD_HOTKEYS)) return;
     const id = ds.vdOrder(st)[n - 1];
     if (!id) return;
     e.preventDefault();
     activateSlot(n);
+  });
+}
+
+// Design: D7.v6.navigator
+function openNavigator() {
+  modal((box, end) => {
+    const input = document.createElement('input');
+    input.placeholder = '종목·화면·가상화면 검색';
+    input.className = 'minp';
+    const rows = document.createElement('div');
+    rows.className = 'nav-rows';
+    const draw = () => {
+      rows.replaceChildren();
+      for (const f of ds.listForms(st, desk.snapshot(), input.value, screens.spec)) {
+        const row = document.createElement('div');
+        row.className = 'nav-row';
+        const name = document.createElement('span');
+        name.textContent = `${f.vdLabel} · ${f.label} · ${f.code} · ${f.id} [${f.status}]`;
+        const focus = () => { if (!f.allVd) activateSlot(st.vds[f.vd].slot); raiseForm(f.id); end(null); };
+        const move = document.createElement('select');
+        for (const id of ds.vdOrder(st).filter(id => st.vds[id].enabled)) {
+          const option = document.createElement('option'); option.value = id; option.textContent = st.vds[id].label; move.append(option);
+        }
+        move.value = f.vd;
+        move.onchange = () => { moveForm(f.id, move.value); draw(); };
+        row.append(name, mkBtn('포커스','',focus), move,
+          mkBtn(f.visible ? '숨기기' : '표시','',()=>{ patch('',ds.setFormVisiblePatch(st,f.id,!f.visible)); draw(); }),
+          mkBtn('닫기','',()=>{ closeForm(f.id); draw(); }));
+        rows.append(row);
+      }
+    };
+    input.oninput = draw;
+    box.append(input, rows, mkBtn('닫기','',()=>end(null))); draw(); input.focus();
+  });
+}
+// Design: D7.v6.snapshot-import
+function downloadWorkspace() {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(ds.exportWorkspace(st),null,1)], {type:'application/json'}));
+  const a = document.createElement('a'); a.href=url; a.download='workspace.json'; a.click(); URL.revokeObjectURL(url);
+}
+// Design: D7.v6.snapshot-import, D4.v6.recovery-mode
+function importWorkspace(recovery = false) {
+  const input=document.createElement('input');input.type='file';input.accept='.json,application/json';
+  input.onchange=async()=>{
+    if(!input.files[0])return;
+    try {
+      const pkg=JSON.parse(await input.files[0].text());
+      const p=ds.importWorkspacePatch(recovery?ds.defaultStateV6():st,pkg);
+      const current=recovery?{}:st.forms;
+      const incoming=pkg.state.forms;
+      const added=Object.keys(incoming).filter(id=>!current[id]).length;
+      const removed=Object.keys(current).filter(id=>!incoming[id]).length;
+      const changed=Object.keys(incoming).filter(id=>current[id] && JSON.stringify(current[id])!==JSON.stringify(incoming[id])).length;
+      const summary=`창 추가 ${added} / 삭제 ${removed} / 변경 ${changed}. 가져올 창 ${Object.keys(pkg.state.forms).length}개, 스냅샷 ${Object.keys(pkg.state.snapshots).length}개. 현재 배치를 교체합니다.`;
+      if(!await askOk(summary,'가져오기'))return;
+      if(recovery){await jreplaceState(pkg.state);location.reload();}
+      else await patch('',p);
+    } catch(e){await tell('가져오기 실패: '+e.message);}
+  };
+  input.click();
+}
+// Design: D4.v6.recovery-mode
+function openRecovery(report) {
+  const host=$('#desk');host.replaceChildren();
+  const box=document.createElement('div');box.className='recovery';
+  const text=document.createElement('p');text.textContent=`작업공간 복구 필요: ${report.errorCode || 'SCHEMA'} · state/workspace.json`;
+  box.append(text,mkBtn('내보내기','',()=>{const a=document.createElement('a');a.href='/api/state/recovery/raw';a.download='workspace.json';a.click();}),
+    mkBtn('가져오기','',()=>importWorkspace(true)),mkBtn('기본 상태로 시작','',async()=>{
+      if(!await askOk('원본을 백업하고 기본 작업공간으로 시작합니까?','시작'))return;
+      try{await jreplaceState(ds.defaultStateV6());location.reload();}catch(e){await tell('복구 실패: '+e.message);}
+    }));host.append(box);
+}
+
+// Design: D7.v6.snapshot-import
+function openSnapshots() {
+  modal((box,end) => {
+    const draw = () => {
+      box.replaceChildren();
+      box.append(mkBtn('현재 배치 저장','on',async()=>{
+        const name=await askText('스냅샷 이름','',32,value => !value || Object.values(st.snapshots).some(s=>ds.labelKey(s.name)===ds.labelKey(value)) ? '이름이 비었거나 중복됩니다.' : '');
+        if (name) { const p=ds.saveSnapshotPatch(st,name); if(p) await patch('',p); draw(); }
+      }));
+      for (const [id,snap] of Object.entries(st.snapshots)) {
+        const row=document.createElement('div');row.className='nav-row';
+        const title=document.createElement('span');title.textContent=snap.name;
+        row.append(title,mkBtn('복원','',async()=>{if(await askOk(`${snap.name} 배치를 복원합니까?`,'복원')){const p=ds.restoreSnapshotPatch(st,id);if(p)await patch('',p);end(null);}}),
+          mkBtn('삭제','',async()=>{if(await askOk(`${snap.name} 스냅샷 삭제`,'삭제')){await patch('snapshots',{[id]:ds.DEL});draw();}}));box.append(row);
+      }
+      box.append(mkBtn('닫기','',()=>end(null)));
+    };draw();
+  });
+}
+// Design: D7.v6.navigator
+function openCommandPalette() {
+  modal((box,end)=>{
+    const search=document.createElement('input');search.className='minp';search.placeholder='명령 검색';
+    const rows=document.createElement('div');
+    const commands=[['전체 화면 탐색기',openNavigator],['스냅샷',openSnapshots],['작업공간 내보내기',downloadWorkspace],['작업공간 가져오기',()=>importWorkspace()],
+      ['되돌리기',()=>{const p=ds.undoPatch(st);if(p)patch('',p);}]];
+    for(const id of ds.vdOrder(st)) commands.push([`가상화면 ${st.vds[id].slot}: ${st.vds[id].label}`,()=>activateSlot(st.vds[id].slot)]);
+    for(const id of ds.vdOrder(st).filter(id=>!st.vds[id].enabled)) commands.push([`현재 VD를 ${st.vds[id].slot}번에 복제`,()=>{const p=ds.cloneVdPatch(st,st.activeVd,id);if(p)patch('',p);}]);
+    for(const f of ds.listForms(st,desk.snapshot(),'',screens.spec)) commands.push([`${f.visible?'숨기기':'표시'} ${f.label} ${f.id}`,()=>patch('',ds.setFormVisiblePatch(st,f.id,!f.visible))]);
+    const draw=()=>{rows.replaceChildren();for(const [label,fn] of commands.filter(([label])=>ds.labelKey(label).includes(ds.labelKey(search.value))))rows.append(mkBtn(label,'',()=>{end(null);fn();}));};
+    search.oninput=draw;box.append(search,rows);draw();search.focus();
   });
 }
 
@@ -476,6 +593,11 @@ async function boot() {
   $('#mode').textContent = `키움 REST ${env.paper ? '모의투자' : '실투자'}${env.configured ? '' : ' · 인증 설정 필요'}`;
   bus.sub((line) => { $('#status').textContent = line; });
 
+  // Design: D4.v6.recovery-mode
+  const recoveryResponse = await fetch('/api/state/recovery');
+  if (!recoveryResponse.ok) { openRecovery({errorCode:'IO'}); return; }
+  const recovery = await recoveryResponse.json();
+  if (!recovery.parseOk || !recovery.rootObject || recovery.schemaVersion > ds.PROJECT_SCHEMA) { openRecovery(recovery); return; }
   let raw = await jget('');
   if ((raw.schemaVersion | 0) < ds.PROJECT_SCHEMA) {
     const m = ds.migrate(raw, screens.spec, bounds());
@@ -486,6 +608,7 @@ async function boot() {
     raw = m.st;
   }
   const rc = ds.reconcile(raw, screens.spec, bounds());
+  if (!rc.st) { openRecovery({errorCode:'SCHEMA'}); return; }
   st = rc.st;
   if (rc.changed) {
     await jpatch('', rc.patch);
@@ -500,6 +623,8 @@ async function boot() {
     mode: 'initial', ids: Object.keys(st.forms), order: { mode: 'rebuild', id: null },
   }));
 
+  $('#navigator').onclick = openNavigator;
+  $('#commands').onclick = openCommandPalette;
   renderQuick();
   initSearch();
   initKeys();

@@ -30,10 +30,10 @@ for f in sorted((R / "app").rglob("*.py")):
     if hit:
         add("static", "C1", "no feature words", ",".join(hit), f"app/{f.name}")
 
-# ---- C2: 코드 스키마 == design.md 대상 스키마 ----
+# ---- C2: 코드 스키마 == README.md 대상 스키마 ----
 spec = read(R / "web" / "js" / "deskspec.js") or read(R / "web" / "js" / "statespec.js")
 m = re.search(r"PROJECT_SCHEMA\s*=\s*(\d+)", spec)
-d = re.search(r"대상 스키마:\s*schemaVersion\s*(\d+)", read(R / "design.md"))
+d = re.search(r"대상 스키마:\s*schemaVersion\s*(\d+)", read(R / "README.md"))
 if m and d and m.group(1) != d.group(1):
     add("design", "C2", d.group(1), m.group(1), "deskspec.js:PROJECT_SCHEMA")
 
@@ -91,7 +91,7 @@ if sc:
         add("design", "C6", "unique screen no", ",".join(dup), "web/js/screens.js")
 
 # ---- C7: 상시 문서 정원 3개 (A0.1) ----
-allowed = {"rules.md", "todo.md", "design.md", "README.md"}
+allowed = {"rules.md", "todo.md", "README.md"}
 extra = sorted(p.name for p in R.glob("*.md") if p.name not in allowed)
 if extra:
     add("static", "C7", "rules/todo/design only", ",".join(extra), "repo root")

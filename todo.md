@@ -2,6 +2,9 @@
 
 ## 한 일
 
+- [x] 2026-09-06 사용자 지시로 상시 문서를 README.md(설명·상세 설계), rules.md(헌법), todo.md(한 일·할 일) 세 개로 통일. 기존 design.md 설계를 README.md로 이전하고 검사기 참조 갱신. rules.md A0/A12에 `세션복구!` 순서와 세션 종료 기록 의무 명시.
+- [x] 문서 이전 검증: check.py PASS, git diff --check 통과. 문서 참조의 design.md 잔여는 이전 이력 설명뿐이다. 전체 실시간/아키텍처 acceptance를 통과했다는 의미는 아니다.
+
 - [x] D5.v6.market-time-display: 시간축·crosshair를 Asia/Seoul로 표시. NXT 08:00/KRX 09:00 및 자정 00:00 회귀 검사, UTC epoch 보존 검증. ENGINE/BRIDGE 변경 0.
 
 
@@ -13,7 +16,7 @@
 
 - [x] 키움 HTS형 가상화면과 경쟁 UX 비교 결과를 v6 목표 범위로 변환했다.
 - [x] 기존 동적 VD ID·order 설계와 실제 고유 이름 결함을 architecture remediation으로 분류했다.
-- [x] r6.0에서 `design.md`를 schemaVersion 6 기준 D1~D14 설계도로 교체하고 당시 OPEN 0으로 결정했다.
+- [x] r6.0에서 `README.md`를 schemaVersion 6 기준 D1~D14 설계도로 교체하고 당시 OPEN 0으로 결정했다.
 - [x] `vd1`~`vd8` 고정 슬롯, enabled 상태, NFKC 기반 고유 라벨, v5→v6 무손실 마이그레이션 순서를 확정했다.
 - [x] VD 종목연동·공유그룹·전체 탐색기·상태 badge·복제·snapshot·undo·import/export·스냅·명령 팔레트를 축별로 배치했다.
 - [x] z-order와 geometry 비용을 분리하고 trusted pointer만 raise하도록 설계했다.
@@ -21,9 +24,49 @@
 - [x] 다종목 캔들 overlay/pane/독립축/비교모드 설계를 v6에 통합했다.
 - [x] canonical 설계 fixture `state/workspace.v6.fixture.json`을 작성했다.
 - [x] 기존 v5 다종목 설계를 v6 개정 기준선으로 승계하고 D13 구현 순서를 Gate 0~Tranche 7로 고정했다.
-- [x] r6.0 커밋에서 `design.md`와 `todo.md`의 기준 commit·schemaVersion·설계 상태·OPEN·Gate·Tranche 순서를 동기화 검증했다.
+- [x] r6.0 커밋에서 `README.md`와 `todo.md`의 기준 commit·schemaVersion·설계 상태·OPEN·Gate·Tranche 순서를 동기화 검증했다.
 
 ## 할 일
+
+### 해결됨 — RC-foundation-coordinates
+
+- 충돌 좌표: A2.6 D2↔Part B 1:1, B1~B5/B7/B13/B18. 현재 ENGINE/BRIDGE 위치와 primitive는 chart/frame 중심, root STATE는 v6 단일 workspace로 고정돼 있다.
+- 구체 사례: 프로젝트 envelope v7과 공통 request/stream/lease/journal primitive를 추가하면 현 Part B에 없는 구현 위치·primitive·schema가 생긴다. 기능 추가 승인만으로 rules.md 좌표를 자동 변경할 수 없다.
+- 규칙 유지 대안: v6 단일 프로젝트와 기존 REST adapter 범위에 한정. 사용자 전체 목표인 프로젝트 격리/공통 WSS·주문 복원은 미충족으로 남긴다.
+- 해결: 2026-09-06 사용자 `예`로 README.md D2.foundation-r7.boundary의 B1~B5/B7/B13/B18 확장 승인 및 rules.md 반영. Part A/I1~I12 및 frozen generic CRUD·/api/node·vendor 계약 유지.
+- 좌표 확장은 승인 완료이므로 다시 묻지 않는다. 전체 상세 명세와 독립 T12 완료는 별도 검증한다. 신규 실시간 제품 코드는 아직 미수정.
+
+### 실행 계획 — README.md D1~D14.foundation-r7
+
+- [x] 2026-09-06 좌표 확장 승인 반영: Part A 변경 0, B1~B5/B7/B13/B18만 확장.
+- [x] D6.resource-types/D10.reconciliation/D4.command-journal 상세 계약 추가: lease/descriptor/error, snapshot 경합, UNKNOWN 주문 재전송 금지와 내구 기록.
+- [x] state/workspace.v7.fixture.json 작성. 내부 v6 전체 deep equality·한국어 인코딩·automationEnabled=false 검증 PASS. 사용자 state/workspace.json은 변경하지 않았다.
+- [x] 문서/fixture tranche의 check.py 및 git diff --check 통과. 새 WSS/프로젝트 제품 구현과 독립 T12 완료를 뜻하지 않는다.
+- [x] 공식 Kiwoom 저장소 commit 234560d213acd8871ae344b5481aecd2f30287fa의 WSS runtime과 API spec을 읽고 주문/계좌/시세/조건검색 wire 카탈로그를 대조.
+- [x] 실행 설계안 D1~D14 추가: v7 프로젝트 envelope 제안, 4축 좌표, 공통 자원 계약, 연결 복구, 오류표, F01~F12, 부하 측정 조건 및 단계별 산출물 기록. DRAFT이며 완전 명세/T12 완료가 아님.
+- [x] 관측 architecture defect: runtime.js 전체 normalize/정렬 및 chart.js 전체 projection/hash가 남아 있음. lifecycle locality만으로 I9 통과를 판정하지 않는다.
+- [ ] R0: 좌표 승인→descriptor/journal/reducer 충돌 표→v7 fixture/실제 golden trace→독립 T12→신규 범위 구현 게이트 확정.
+- [ ] R1: check.py static/semantic/recorder/t12 실제 독립 검사. 현재 PASS 문자열은 전체 semantic 실행 증거가 아니다.
+- [ ] R2: 프로젝트 STATE와 v6→v7 원문 보존 마이그레이션, 전 단위 복원.
+- [ ] R3: 범용 key index/lease/queue/session 및 feature-blind diff.
+- [ ] R4: 등록 기반 Kiwoom TR, 공유/페이지/인증/유량, 기존 adapter 단일 경로 이관.
+- [ ] R5: WSS 시세/호가/장상태, snapshot+delta와 연결 세대 격리.
+- [ ] R6: 계좌/주문 감시·서버 대조·journal·정정/취소/부분체결/UNKNOWN.
+- [ ] R7: 조건검색 초기 결과·편입/이탈·해제·재동기화.
+- [ ] R8: 차트 polling 이관 및 지표/화면 변경분 처리, 최신성 UI.
+- [ ] R9: 기존 v6 잔여 브라우저 acceptance, F01~F12, 부하/장애/장중 실증 후 최종 판정.
+
+### 최우선 — TR/WSS 실시간 동기화 기반 (2026-09-06 사용자 목표 확정)
+
+- 최상위 목적 추가 확정: 범용 핵심 불변 + 수천 ADDON 확장 + 성능 계약 유지 + 전 단위 영속성 + 다종목 WSS/TR 유지·복원. D1.realtime-foundation.purpose 및 D12.realtime-foundation.scale에 명시. 등록/저장 수와 활성 부하를 분리하고 단일 변경의 무관 대상 operation 0 및 부하/장애 복구를 검증하기 전에는 보장 완료로 기록하지 않는다.
+- 추가 사용자 필수 조건: 프로젝트/VD/자식폼/ADDON의 모든 사용자 설정·desired 값을 JSON으로 보존하고 다음 세션에도 정상 적용과 동일한 로직으로 복원. 4축 경계 절대 유지. D4/D11.realtime-foundation.persistence에 기록. 프로젝트 격리 스키마와 P1~P8 실증은 미완료.
+- 사용자 목표: 전략개발·조건식·키움계좌 연계를 위한 기반. 복잡한 ADDON 추가 전에 단순 TR 조회부터 실시간 매매에 필요한 WSS 업데이트와 서버 상태 동기화를 갖춘다.
+- 관측: REST 조회와 차트/현재가 polling만 구현. WSS 수신·재구독·계좌/주문 재동기화·실시간 성능 보장은 미구현. 기존 조회 검사 PASS는 실시간 기반 완료를 뜻하지 않는다.
+- 신규 범위 설계 상태: DRAFT (요구사항 기록, 상세 설계/T12 미완료). 기존 v6 승인 범위 유지. 참조: README.md D1.realtime-foundation.requirements 및 D14.realtime-foundation.open.
+- [ ] 공식 TR/WSS 카탈로그와 환경별 지원·제한을 대조해 조회/주문/실시간/조건검색 계약 확정.
+- [ ] 인증·구독 공유·재접속·TR snapshot/WSS delta 정합성·주문 결과 불명 처리와 4축 경계를 상세 설계.
+- [ ] 수신→계산→화면 지연, backlog, 메모리, 누락/중복 및 복구 완료 조건을 수치와 테스트 trace로 확정.
+- [ ] 상세 설계 검토 후 TR 기반→WSS 시세→계좌/주문→복구·부하 검증 순으로 구현. 복잡한 전략 ADDON보다 우선한다.
 
 ### 선택 종목 기준 지표 동기화 토글 — 구현 완료
 
@@ -49,7 +92,7 @@
 
 - 참조 저장소는 `hoonoh57/kiwoom-desk`로 정정됨. server/index.ts, src/api/KiwoomClient.ts, src/api/trSchema.ts 검토 완료.
 - 해결한 결함: 자체 MockAdapter와 출처 없는 봉 캐시 혼입. REST source별 캐시로 분리 완료.
-- [x] `design.md` REST 전환 범위는 사용자 `모두 진행`으로 승인되어 구현 완료.
+- [x] `README.md` REST 전환 범위는 사용자 `모두 진행`으로 승인되어 구현 완료.
 - [x] 로컬 인증 설정이 구성된 것을 재확인하고 키움 모의투자 서버의 실제 읽기 전용 조회를 검증했다. 키 값은 출력·커밋하지 않았다.
 - [x] 자체 MockAdapter 제거, REST 인증·TR·연속 조회·KST 변환, source별 v2 캐시 격리, 설정 상태 표시 완료.
 - [x] 실제 조회: 현재가·잔고 성공, tick/1m/5m/30m/1d/1w 각 600봉, 1M 501봉 성공. 요청 간격 1.2초에서 연속 조회 제한 해소. 외부 주문 요청 0건.
@@ -71,7 +114,7 @@ REMEDIATION_REQUIRED
 ### 해결됨 — RC-v6-schema
 
 - 충돌 규칙: A2.6의 D2↔Part B 1:1 요구, B4의 `schemaVersion 5`, B18의 `workspace.v5.fixture.json`, B19의 trace 목표 경로.
-- 구체 사례: 개정 `design.md`와 canonical fixture는 schemaVersion 6인데 Part B는 schemaVersion 5만 프로젝트 STATE 좌표로 허용한다. 이 상태에서는 C1과 계층 매핑 PASS를 동시에 만족할 수 없다.
+- 구체 사례: 개정 `README.md`와 canonical fixture는 schemaVersion 6인데 Part B는 schemaVersion 5만 프로젝트 STATE 좌표로 허용한다. 이 상태에서는 C1과 계층 매핑 PASS를 동시에 만족할 수 없다.
 - 규칙 유지 대안: schemaVersion을 5로 유지하고 v6 필드를 v5의 optional 필드로 추가하며 fixture와 trace 경로도 Part B 값으로 되돌린다.
 - 목표 설계 유지 대안: 사용자가 rules.md의 B4·B18·B19를 schemaVersion 6 및 v6 fixture 경로로 변경하라고 명시적으로 승인한다.
 - 상태: 2026-09-05 사용자 `A안 승인`으로 B4·B18·B19를 v6 좌표로 변경해 해결했다.
@@ -86,20 +129,21 @@ REMEDIATION_REQUIRED
 - [x] REPAIR/FATAL을 비영속 boot 결과로 두고 recovery status/raw/replace 계약을 확정했다.
 - [x] STATE가 VD 정책을 소비해 generic change-set을 만들고 BRIDGE는 workspace를 읽지 않도록 정리했다.
 
-현재 좌표
+### 현재 좌표
 
 ```text
 branch       : main
-제품 기준선  : 750634d + Tranche 4 chart 안정화
-문서 tranche : 95d97a8 r6.2 APPROVED
-worktree     : Tranche 6 탐색·생산성·복구 UI 구현, 자동 검증 완료; 브라우저 acceptance 잔여
+제품 기준선  : 2cd7678 (지표 동기화까지 push 완료; 재개 시 Git 대조)
+문서 tranche : README.md D1~D14.foundation-r7 실행 설계안, R0~R9 보완 순서
+worktree     : 승인 좌표·설계·v7 fixture를 문서 tranche로 기록; 재개 시 Git 상태 대조
 현재 STATE   : state/workspace.json schemaVersion 6
-목표 STATE   : schemaVersion 6
-설계 상태    : APPROVED (r6.2, 전체 D1~D14)
-OPEN         : 0
-게이트       : C1 완료, C2 완료, C3(T12) 완료, C4(APPROVED) 완료
-모델 운용    : gpt-5.6-sol high 유지; deterministic 저위험 구현 진입 전에 low 전환 가능 시점 고지
-다음 설계 ID : D7.v6.navigator, D7.v6.snapshot-import, D4.v6.recovery-mode
+목표 STATE   : schemaVersion 7 envelope + 프로젝트 내부 v6
+설계 상태    : 기존 v6 APPROVED; realtime-foundation/foundation-r7 DRAFT
+OPEN         : foundation-r7 2개 검토 항목 (좌표 항목 해결)
+게이트       : 좌표 확장 승인 완료; 상세 계약/독립 T12 미완료
+다음 설계 ID : README.md D2/D6/D14.foundation-r7
+다음 행동    : provider 선언 스키마/응답 상관관계·timeout 계약 및 실제 골든 trace 확정→독립 T12; 좌표 재승인 질문 금지
+검증 잔여    : 실시간 구현/부하/복구, 프로젝트 격리, 브라우저 acceptance, 전체 ARCH PASS
 ```
 
 ### Gate 0 — 코드 착수 전

@@ -1,0 +1,120 @@
+{
+ "activeProjectId": "p1",
+ "projectOrder": [
+  "p1"
+ ],
+ "projectSeq": 2,
+ "projects": {
+  "p1": {
+   "enabled": true,
+   "name": "기본 프로젝트",
+   "props": {
+    "automationEnabled": false,
+    "connectionRef": "default",
+    "dataEnabled": true
+   },
+   "workspace": {
+    "activeVd": "vd1",
+    "forms": {
+     "f1": {
+      "allVd": false,
+      "body": {
+       "items": {},
+       "order": [],
+       "panes": [],
+       "ui": {},
+       "view": {}
+      },
+      "code": "005930",
+      "link": "follow",
+      "prevRect": {
+       "h": 520,
+       "w": 820,
+       "x": 12,
+       "y": 12
+      },
+      "rect": {
+       "h": 520,
+       "w": 820,
+       "x": 12,
+       "y": 12
+      },
+      "screen": "chart",
+      "shareGroup": "all",
+      "tf": "1m",
+      "title": null,
+      "vd": "vd1",
+      "visible": true,
+      "winState": "normal"
+     }
+    },
+    "globalOn": true,
+    "layout": {
+     "sidebarW": 300,
+     "snapPx": 8
+    },
+    "schemaVersion": 6,
+    "seq": {
+     "form": 2,
+     "snapshot": 1
+    },
+    "snapshots": {},
+    "symLink": "vd",
+    "undo": null,
+    "vds": {
+     "vd1": {
+      "enabled": true,
+      "label": "1",
+      "slot": 1,
+      "z": [
+       "f1"
+      ]
+     },
+     "vd2": {
+      "enabled": false,
+      "label": "2",
+      "slot": 2,
+      "z": []
+     },
+     "vd3": {
+      "enabled": false,
+      "label": "3",
+      "slot": 3,
+      "z": []
+     },
+     "vd4": {
+      "enabled": false,
+      "label": "4",
+      "slot": 4,
+      "z": []
+     },
+     "vd5": {
+      "enabled": false,
+      "label": "5",
+      "slot": 5,
+      "z": []
+     },
+     "vd6": {
+      "enabled": false,
+      "label": "6",
+      "slot": 6,
+      "z": []
+     },
+     "vd7": {
+      "enabled": false,
+      "label": "7",
+      "slot": 7,
+      "z": []
+     },
+     "vd8": {
+      "enabled": false,
+      "label": "8",
+      "slot": 8,
+      "z": []
+     }
+    }
+   }
+  }
+ },
+ "schemaVersion": 7
+}

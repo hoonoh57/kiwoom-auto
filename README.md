@@ -1,4 +1,22 @@
-# design.md — Multi-VD Workspace Blueprint v6
+# kiwoom-auto
+
+키움 TR/WSS를 통해 다종목 시세·계좌·주문을 연계하고, 전략·조건식 등 기능을 ADDON으로 확장하는 작업공간이다. 범용 핵심 불변, 4축 경계, 변경분에 비례하는 처리, 전 단위 JSON 영속·복원을 목표로 한다. 실시간 기반의 구현 완료를 의미하지 않는다.
+
+## 문서와 세션 복구
+
+- [rules.md](rules.md): 핵심 헌법, 작업 방식, 설계·검증 절차의 유일한 규칙 원본.
+- [todo.md](todo.md): 한 일·할 일·현재 좌표·승인 범위·검증 증거와 다음 작업.
+- README.md: 프로젝트 설명과 아래 상세 설계. 기존 design.md의 설계 ID와 내용을 이 문서로 이전했다.
+
+새 세션에서 `세션복구!`를 입력하면 rules.md → todo.md → 실제 Git 상태 확인 → todo.md가 지정한 이 문서의 설계 절 확인 순서로 작업을 재개한다. 해당 세션이 이 저장소 파일에 접근할 수 있어야 한다.
+
+## 실행
+
+Windows에서 기존 환경 설정 후 `start.bat`로 실행한다. 기본 접속 주소는 http://127.0.0.1:8077 이다. 인증 정보는 저장소 문서에 기록하지 않는다. 구현·검증의 최신 상태는 todo.md를 따른다.
+
+## 상세 설계 — Multi-VD Workspace Blueprint v6
+
+아래 승인은 기존 v6 범위에 한정된다. realtime-foundation 추가 범위는 DRAFT이며 해당 D14의 OPEN 항목이 남아 있다.
 
 ```text
 설계 상태 : APPROVED (개정 r6.2)
@@ -761,3 +779,266 @@ MA/거래량/MACD/RSI/누적거래대금은 meta.indicator=true로 등록한다.
 ## D11.v6.indicator-sync — 검증
 
 S1 ON: 기준 지표 설정은 동일, 대상별 dataKey는 서로 다름. S2 길이 변경: 기준/복사 지표만 변경, 캔들 lifecycle 0. S3 OFF 후 기준 편집: 다른 종목 지표 변화 0. S4 동일 ON 재적용: ID·seq·patch 변화 0. S5 캔들 삭제/숨김: 그 대상 지표만 제거/숨김, 다른 대상 handle 보존. S6 저장 재적용은 같은 정상 diff 경로, 동기화 전용 BRIDGE/ENGINE 변경 0. S7 종목별 다른 봉에서 계산한 MA 값이 서로 다름.
+
+## D1.realtime-foundation.requirements — 실시간 연계 기반 (DRAFT, 2026-09-06)
+
+사용자 확정 목표: 전략개발 연계, 조건식 연계, 키움계좌 실시간 연계가 같은 데이터 기반을 사용하며, 복잡한 ADDON 추가 전에도 단순 TR 조회부터 매매에 필요한 WSS 업데이트와 서버 상태 동기화를 갖춘다. 이 절은 요구사항이며 기존 v6 승인과 구분한다. 현재 polling을 실시간 기반 완성으로 간주하지 않는다.
+
+필수 완료 조건:
+- TR: 인증, 연속 조회, 요청 제한, 오류 전달, 동일 요청 공유와 최신성 표시. 주문 요청은 조회 재시도 정책과 분리한다.
+- WSS: 인증 확인, heartbeat, 구독/해지 응답 확인, 연결 세대 구분, 재접속/재인증/재구독 및 상태 표시. 같은 소스를 여러 화면이 사용해도 구독은 공유한다.
+- 시세: 초기 TR 데이터와 WSS 증분을 결합하고 종목/시장/주기별로 격리한다. 이전 연결·종목의 늦은 결과가 새 데이터에 혼입되지 않아야 한다.
+- 계좌/주문: 주문 접수와 체결을 구분하고 부분체결·정정·취소·거부를 반영한다. 주문 응답 유실은 결과 불명으로 보존하며 무조건 재전송하지 않는다. 재연결 후 미체결·체결·잔고를 서버 조회와 대조한다.
+- 조건식/전략 연계: 향후 ADDON에 제공할 이벤트와 데이터 최신성 계약을 정의한다. 조건검색 목록/초기 결과/실시간 편입·이탈 및 재구독 시 결과 대조를 범위에 포함한다. 복잡한 전략 자체는 별도 범위다.
+- 성능: 전체 화면 재조회 대신 변경 대상에 전달하고 버퍼/큐 상한과 과부하 대응을 정의한다. 주문·체결 이벤트를 화면 갱신 병합 정책으로 버리지 않는다. 수신→계산→화면 반영 지연과 backlog를 측정한다.
+- 정합성: 연결됨과 동기화 완료를 구분한다. 단절/지연/복구 중에는 정상으로 표시하지 않는다. 누락 구간의 완전 재생을 전제하지 않고 조회로 확인 가능한 상태를 대조한다. 정합성 미확인 상태에서 신규 자동 주문을 실행하지 않는다.
+- 경계: ENGINE generic primitive, ADDON 단일 item 의미, BRIDGE feature-blind diff, STATE desired-only를 유지한다. 토큰·WSS handle·재시도·서버 실측 상태는 workspace JSON에 저장하지 않는다. 상세 계층 매핑은 구현 전 확정한다.
+
+공식 확인 근거: https://openapi.kiwoom.com/guide/apiguide?jobTpCode=15 및 https://github.com/Kiwoom-Securities/Kiwoom-REST-API . 공식 실시간 문서의 주문체결(00)/잔고(04), WSS 및 모의 환경 KRX 지원 안내를 기준으로 상세 계약을 검증한다. 시간 표시 KST 수정과 NXT 데이터 지원 검증은 별개다.
+
+## D1.realtime-foundation.purpose — 범용 핵심과 ADDON 확장 최상위 목표
+
+2026-09-06 사용자 명시: 핵심은 성능을 보장하는 범용 로직으로 유지하고 기능 의미는 ADDON으로 확장한다. 수천 기능에서도 핵심 로직 불변, 성능 계약 유지, 영속성 유지, 여러 종목 동시매매에 필요한 WSS/TR 유지·복원이 일관돼야 한다. 이후 구현 완료 판정은 이 목표를 포함한다.
+
+- 새 기능은 등록 계약과 단일 item 변환으로 추가한다. 기능 추가 때문에 ENGINE/BRIDGE/STATE의 범용 알고리즘이나 feature별 분기가 늘어나면 설계 결함이다. 핵심 결함의 범용 수정은 근거·설계·회귀 검증을 요구하며 기능 우회 구현을 허용하는 뜻이 아니다.
+- 기능 종류 수, 전체 저장 item 수, 활성 item 수, 고유 구독 수, 초당 이벤트 수를 별도 부하 변수로 둔다. 등록/저장만 된 무관한 기능 수가 정상 이벤트 처리의 전체 순회·재계산·재구독을 유발해서는 안 된다. 최초 로딩/전체 교체 비용은 증분 처리 비용과 별도 계약으로 측정한다.
+- 변경 이벤트는 영향받는 item/의존 대상에만 전달한다. 공유 데이터 소스는 중복 TR/WSS 자원을 만들지 않는다. 실제 활성 계산량 증가는 처리 비용을 갖는다는 사실을 숨기지 않으며, 지원 부하에서 지연·메모리·큐 예산을 충족하고 한계 초과를 명시적으로 감지한다. 무한 활성 부하에서 지연 불변을 주장하지 않는다.
+- 프로젝트/VD/폼/ADDON 설정 영속성과 정상 적용 경로의 복원은 기능 개수와 무관하게 같은 계약을 따른다. WSS/TR 재연결·재구독·대조는 공통 인프라 경로로 처리하며 ADDON별 재시도/복원 상태기계를 만들지 않는다.
+- 다종목 주문은 종목·계좌·주문 식별을 보존한다. 일부 조회/구독/주문 실패가 다른 대상의 상태를 덮어쓰지 않아야 한다. 세션 복원은 구독 의도를 복구하고 서버 상태를 재확인하며 일회성 주문을 재전송하지 않는다.
+
+## D12.realtime-foundation.scale — 성능 불변성 검증 요구
+
+기능/item 수 1·10·1000에서 동일한 활성 부하를 주고 단일 변경의 대상 계산 수, lifecycle operation 수, TR/WSS 요청 수를 비교한다. 무관한 대상 operation은 0이어야 한다. 활성 종목/이벤트 부하를 늘리는 별도 시험에서 수신→계산→화면 지연 p95/p99, 주문 처리 지연, backlog, 메모리 및 복구 시간을 측정한다. 공급자 제한과 시험 환경을 포함한 수치 예산은 D14 OPEN 4에서 확정한다. 단절/인증 만료/지연/중복/조회 실패/프로세스 재시작을 같은 부하에서 검증하기 전에는 성능·복원 보장 완료로 기록하지 않는다.
+
+## D4.realtime-foundation.persistence — 전 단위 JSON 복원 필수 계약
+
+2026-09-06 사용자 명시: 프로젝트, 가상화면, 개별 자식폼, 개별 ADDON의 상태와 값은 JSON을 통해 다음 세션에 동일한 로직으로 복원한다. 4축 경계는 이후 모든 기능과 성능 개선에서도 양보하지 않는다.
+
+- 영속 대상은 각 단위의 사용자 설정과 desired 값 전체다. ID·소속·순서·활성/표시·선택·배치·종목/주기·연동·지표/전략/조건식 파라미터 등 구현되는 모든 필드는 소유 단위와 JSON 경로를 명시한다. DOM이나 메모리에만 유효한 사용자 설정을 남기지 않는다.
+- 프로젝트별 문서는 격리한다. 가상화면→자식폼→ADDON 소속과 참조는 안정적인 ID로 유지한다. 프로젝트 격리의 구체 스키마/전환 API는 상세 설계에서 확정하며 현재 구현 완료로 간주하지 않는다.
+- 정상 편집과 다음 세션 시작은 모두 JSON desired → 동일한 정규화/projection → generic BRIDGE diff → 등록된 단일 ADDON → ENGINE primitive 경로를 사용한다. 복원 전용 ADDON/BRIDGE 분기, 별도의 생성 순서 상태기계, 화면 값 역추출을 추가하지 않는다.
+- STATE는 desired-only다. 상속 원본/null과 명시값을 보존하고 effective 파생값을 다시 저장하지 않는다. 핸들·소켓·promise·retry·연결완료 상태는 저장하지 않는다. 시세·잔고·체결 같은 서버 관측값은 재조회/재구독으로 확인하며 과거 JSON을 현재 서버 상태로 승격하지 않는다. 필요 캐시·거래 감사기록은 workspace desired와 분리해 상세 계약을 정한다.
+- 저장 실패/스키마 오류는 명시적으로 드러내며 기존 유효 문서를 보존한다. 버전 변경은 결정적 마이그레이션과 참조 무결성 검사를 거친다.
+- 재적용은 idempotent여야 한다. 프로젝트 전환/재시작 시 정상 해제·적용 경로로 자원을 처리하고 다른 프로젝트의 데이터와 구독이 섞이지 않아야 한다. 설정 복원 자체가 과거 일회성 매매 명령을 재실행해서는 안 된다.
+
+## D11.realtime-foundation.persistence — 복원 acceptance 요구
+
+P1 각 단위에서 기본값이 아닌 모든 지원 필드를 설정하고 JSON 왕복 및 새 세션에서 값/소속/참조/선택을 비교한다. P2 숨김·비활성 VD/폼/ADDON도 설정을 보존한다. P3 동일 JSON을 두 번 적용하면 두 번째 lifecycle 변경은 0이다. P4 한 ADDON 값 변경은 무관한 item의 lifecycle을 변경하지 않는다. P5 정상 적용과 재시작 적용의 정규화 descriptor 및 최초 생성 trace가 일치한다. P6 프로젝트 A→B→A 전환 후 설정은 원본과 일치하고 구독/데이터가 교차하지 않는다. P7 복원 중 주문 전송 0, 서버 정합성 확인 전 정상 동기화 표시 0이다. P8 신규 등록 ADDON도 같은 검사 경로로 복원되며 ENGINE/BRIDGE의 kind별 예외 추가는 0이다. 상세 fixture/trace는 DRAFT 설계 확정 때 작성한다.
+
+## D14.realtime-foundation.open — 상세 설계 잔여
+
+이 범위는 DRAFT이며 OPEN 4개다. 기존 승인 범위의 OPEN 상태와 구분한다.
+1. 공식 카탈로그별 필드, TR/WSS 지원 범위, 환경별 제한과 조회/주문 rate budget 확정.
+2. 서버 데이터 서비스의 계층 매핑과 공개 계약, 구독 수명, snapshot/delta 경합 및 재동기화 완료 판정 확정.
+3. 이벤트 식별·중복/역순·유실 대응, 주문 결과 불명/계좌 대조 정책과 저장 경계 확정.
+4. 지원 부하와 측정 조건, 지연/큐/메모리 상한, D11 장애·복구 trace 및 독립 T12 검토 확정.
+
+## D1.foundation-r7.scope — 순차 보완 실행 설계안
+
+상태: DRAFT. 2026-09-06 사용자 지시는 설계 완성과 순차 보완 작업의 진행 승인으로 기록한다. Part B 좌표 확장은 후속 사용자 `예`로 승인·반영됐다. 상세 계약 검토와 독립 T12는 남아 있으므로 제품 구현 승인 완료/ARCH PASS로 승격하지 않는다. 기존 v6 승인 범위는 유지한다.
+
+범위는 국내주식 데이터/주문 기반, 프로젝트 격리, 전 단위 영속 복원, 기존 차트의 증분 처리, 조건검색 연계, 오류·연결 상태 UI 및 검증기다. 복잡한 전략 알고리즘/수식 편집기/백테스터는 후속 ADDON 범위다. 현재 모의 환경을 유지한다. 실투자 접속 전환과 외부 주문을 발생시키는 실증은 별도 명시적 사용자 지시가 있어야 한다. 다종목 동시 운용은 논리적 동시 운용이며 서버 요청은 공급자 유량 제한을 따른다.
+
+관측 결함: runtime.js의 activePanes/desired/apply가 항목 전체를 순회하고 정렬한다. chart.js가 지표 projection과 JSON.stringify를 전체 body에 적용한다. 지표별 lifecycle locality 통과는 전체 계산 비용 locality 통과가 아니다. 차트 15초 polling, 현재가 5초 polling, WSS 없음, 단일 workspace.json, 실제 브라우저 및 전체 acceptance 잔여를 기존 구현 사실로 기록한다.
+
+## D2.foundation-r7.boundary — 승인된 좌표 확장
+
+2026-09-06 사용자 `예`로 다음 Part B 좌표 확장을 승인했고 rules.md에 반영했다. Part A의 4축 의미와 I1~I12는 유지한다. 이 승인은 좌표 확장 범위이며 독립 T12 및 상세 명세 완료를 뜻하지 않는다.
+
+| 축/경계 | 기존 위치 | 추가 위치와 책임 |
+| --- | --- | --- |
+| ENGINE | web/js/core.js, frame.js | web/js/engine/: 키 기반 의존 인덱스·배치·버퍼. app/engine/: 범용 HTTP/stream 자원, 제한된 작업 큐, clock, append journal primitive. Kiwoom TR/종목/주문 의미 없음 |
+| ADDON | web/js/addons.js, screens/ | app/addons/: protocol/시세/계좌/주문/조건식의 단일 item 정규화와 primitive 조합. 등록된 codec/reducer는 자기 입력/자기 데이터만 처리. 공통 재시도/collection orchestration 소유 금지 |
+| BRIDGE | web/js/runtime.js, desk.js | app/runtime.py: generic desired diff만 소유. feature별 분기 없음. 구독·연결·큐는 ENGINE capability 사용 |
+| STATE | workspace.json v6 | workspace.json v7 프로젝트 envelope. 프로젝트 내부 workspace는 v6 유지. UI 명령/projection은 web/js/project-state.js, 서버 persistence는 기존 generic 경로 CRUD 유지 |
+| 외부 adapter | app/kiwoom.py 등 | app/kiwoom.py는 기존 HTTP 계약 호환 facade. 새 내부 primitive/ADDON 조립은 공개 계약을 통해 이관하며 완료 후 중복 transport 제거 |
+
+공통 재접속 기계는 ENGINE의 protocol-blind session primitive 한 곳에 둔다. 로그인/heartbeat/구독 메시지는 ADDON이 제공하는 선언적 codec 계약으로 번역한다. 키움 필드명·TR 코드가 ENGINE/BRIDGE에 들어가면 FAIL이다. 실시간 데이터 이벤트는 primitive 입출력이며 workspace STATE 쓰기가 아니다. 일회성 주문은 append journal을 사용하는 명시적 command이고 desired 복원 경로에서 실행하지 않는다.
+
+Part B 반영: B1/B2/B3 위치 추가, B4 v7 envelope+내부 v6, B5 범용 자원 primitive, B7 프로젝트별 ID/완전 참조, B18 v7 fixture와 v6 원본. B13의 기존 /api/node·generic CRUD·vendor 계약은 유지하며 새 서비스 endpoint 추가만 허용한다. 그 외 불변식은 변경하지 않았다.
+
+## D3.foundation-r7.model — 프로젝트와 참조
+
+영속 root는 {schemaVersion:7, projectSeq, activeProjectId, projectOrder, projects}. projectSeq는 1 이상의 안전한 정수이며 신규 ID 발급 후 단조 증가한다. projectOrder는 중복 없는 전체 프로젝트 ID 배열이다. projects는 ID→{name,enabled,props,workspace} 사전이다. name은 NFKC 비교키 기준 프로젝트 간 유일하며 trim 후 1~32 Unicode 문자다. enabled 기본 true, props 기본 {connectionRef:"default",dataEnabled:true,automationEnabled:false}. connectionRef는 서버 설정 별칭이며 키/계좌번호/토큰을 포함하지 않는다. workspace는 기존 v6 전체 문서다. activeProjectId는 존재하는 enabled 프로젝트 하나다. 마지막 enabled 프로젝트 비활성/삭제는 거부한다.
+
+UI 선택과 데이터 운용은 분리한다. 다른 프로젝트로 화면을 전환해도 enabled/dataEnabled 프로젝트의 명시적 운용 구독은 유지하며 보이지 않는 차트의 그리기만 중단한다. automationEnabled는 의도만 저장하고 서버 정합성 확인 및 세션 실행 허용이 없는 상태에서 주문을 실행하지 않는다. 프로젝트 비활성은 해당 프로젝트의 자원 참조만 해제하며 동일 connectionRef의 계좌 감시는 미결 주문이 있으면 유지한다.
+
+완전 참조는 {projectId,formId,itemId}; 경로/문자열 종목코드만으로 item을 식별하지 않는다. form/item 번호는 기존 프로젝트 내부 규칙을 유지한다. 신규 데이터 item도 {id,kind,enabled,visible,props}와 같은 등록 계약을 따른다. 미등록 kind의 원문은 보존하고 unsupported로 표시하며 자원 생성은 0이다.
+
+## D4.foundation-r7.persistence — 마이그레이션과 단일 저장 원본
+
+기존 workspace.json v6를 원문 바이트 보존 백업 workspace.v6.bak로 한 번만 복사한다. 백업이 존재하면 덮어쓰지 않는다. v6 전체를 projects.p1.workspace에 삽입하고 name="기본 프로젝트", projectSeq=2, activeProjectId="p1", projectOrder=["p1"]로 감싼다. 내부 ID·값·숨김 항목·snapshot은 변경하지 않는다. 변환 문서 전체 검증 후 기존 generic 원자 저장 경로로 교체한다. 실패 시 원본 파일 유지, FATAL 표시, 서버 변경 0이다. v5는 기존 v5→v6 결정적 변환 뒤 같은 envelope 변환을 적용한다.
+
+모든 편집은 project-qualified JSON 경로 명령으로 수행한다. localStorage/별도 UI JSON은 authority가 아니다. 정상 편집·프로젝트 전환·새 세션은 같은 projection/diff를 사용한다. 프로젝트 전체 export/import는 v7, VD snapshot은 소속 프로젝트 내부 v6 규칙을 따른다. import 검증은 외부 연결/주문을 실행하지 않으며 취소 시 STATE write 0이다.
+
+시세 캐시와 주문 감사 journal은 desired와 분리한다. journal은 명령 ID별 전송 여부/응답 불명 판별을 위한 거래 증거이고 UI 설정 복원의 원본이 아니다. 디스크 기록 실패 시 신규 주문 전송 0. 과거 journal의 미확정 건은 조회 대조 대상으로만 읽으며 재전송하지 않는다. 이 journal의 상세 필드·회전·결과 불명 대조 규칙은 D14의 독립 검토 대상으로 남긴다.
+
+## D5.foundation-r7.catalog — 공식 연계 카탈로그
+
+공식 검토 기준: Kiwoom-Securities/Kiwoom-REST-API commit 234560d213acd8871ae344b5481aecd2f30287fa의 kiwoom/_data/kiwoom_api_spec.json 및 kiwoom/core/ws_client.py. 구현에서는 공식 필드의 타입·필수값·응답 배열·페이지 정보를 검증한 등록 스펙으로 보관한다. 원격 최신 main을 매 부팅 자동 적용하지 않는다.
+
+| 기능 | wire 계약 | 완료 검증 |
+| --- | --- | --- |
+| 인증 | OAuth token, WSS LOGIN/응답 확인, PING echo | 토큰 동시 발급 공유, 만료/로그인 거부, 비밀값 로그 0 |
+| 초기 봉/현재가 | 기존 ka10079~ka10083, ka10001 | 명시 배열, 출처/시장 분리, 페이지 실패 시 최신 승격 0 |
+| 시세/호가/장상태 | WSS 0B/0D/0s REG·REMOVE | 구독 공유, ack 실패, 늦은 연결 데이터 격리 |
+| 잔고/예수금 | kt00018/kt00001 + WSS 04 | 초기 snapshot과 실시간 절대값 반영·주기적 서버 대조 |
+| 주문 감시 | ka10075/ka10076 + WSS 00 | 접수/체결 구분, 부분체결, 원주문 연결, 외부 주문 반영 |
+| 주문 요청 | kt10000/kt10001/kt10002/kt10003 | 제출/정정/취소, 결과 불명, 중복 실행 차단 |
+| 조건검색 | ka10171~ka10174: CNSRLST/CNSRREQ/CNSRCLR | 목록·일반 결과·실시간 초기 결과·편입/이탈·해제 |
+
+각 kind의 스키마는 필요한 필드를 명시한다. 기본 source는 paper/KRX. market은 KRX/NXT/SOR enum이며 paper의 비KRX 요청은 UNSUPPORTED_MARKET로 거부한다. 실전 지원으로 자동 전환하지 않는다. 종목의 정규화는 instrument와 시장을 분리하고 wire 변환만 provider codec에서 처리한다. 조건검색 시장은 확인된 공식 KRX 계약을 사용한다. 일반 TR은 등록 스펙만 추가해 조회할 수 있어야 하며 임의 URL proxy는 제공하지 않는다.
+
+## D6.foundation-r7.primitives — 공개 계약 제안
+
+모든 시간·network·파일 I/O는 주입한다. ENGINE은 opaque key와 codec/reducer capability만 받으며 feature kind를 분기하지 않는다.
+
+| 공개 계약 | 사후 조건 |
+| --- | --- |
+| acquire(key, descriptor) → lease | 동일 key·동일 descriptor는 underlying resource 공유. 서로 다른 descriptor 충돌은 오류 |
+| release(lease) | 중복 release 무해. 마지막 ref에서 구독 해지/자원 해제 |
+| request(key, descriptor, signal) → result | 동일 조회 in-flight 공유. waiter 취소는 다른 waiter 취소가 아님. sideEffect descriptor는 공유/재전송 금지 |
+| observe(key, listener) → off | key에 등록된 listener만 통지. off 이후 통지 0 |
+| publish(key, event) | key index로 대상 결정, 전체 catalog 순회 0 |
+| flush(keys) | dirty 대상만 deterministic 순서 처리. 메모리/큐 예산 초과는 명시 오류 |
+| append(commandId, record) → durable receipt | 성공 반환 전에 내구성 확보. 실패 시 side effect 실행 금지 |
+
+이 표는 시그니처의 방향을 확정하는 제안이다. descriptor/lease/error의 전체 필드와 동시 호출 trace가 독립 T12에서 확정되기 전에는 해당 제품 코드를 쓰지 않는다.
+
+## D7.foundation-r7.flow — 정상 실행과 연결 복구
+
+1. 저장 root 검증/마이그레이션 후 프로젝트별 desired를 정규화한다. enabled 프로젝트의 운용 item과 활성 화면의 시각 item을 동일 generic change-set으로 투영한다.
+2. BRIDGE는 제거→생성→변경 순서로 단일 item 등록 계약을 호출한다. 변경 집합 내부는 ID 코드포인트 오름차순, 제거는 내림차순이다. full apply는 최초 부팅/전체 import에만 사용하고 정상 tick에서는 key index로 직접 변경 대상을 전달한다.
+3. session primitive는 transport 연결→인증 ack→현재 ref 집합의 등록 ack 순서로 실행한다. session generation을 증가시키고 이전 generation 완료 응답은 폐기한다. 재연결도 같은 acquire 경로를 사용한다.
+4. snapshot 요청 전 실시간 수신을 시작하고 연결 세대별 event 번호를 부여한다. 시장/계좌 reducer별 중복·경합 규칙으로 snapshot과 event를 조합한다. wire에 전역 sequence가 없으면 완전 순서/무손실 재생을 가정하지 않는다.
+5. 계좌·미체결·체결 조회와 구독 ack가 완료돼야 READY 후보가 된다. 미확정 주문/누락/버퍼 overflow가 있으면 DEGRADED를 유지한다. 가격만 오래됐다는 이유와 연결 실패는 구분해 표시한다.
+6. 주문 명령은 fresh+READY 검증→명령 journal 내구 기록→단 한 번 전송→응답 기록 경로다. HTTP 응답은 체결 확인이 아니다. 불명 결과는 조회로 대조하며 유사한 종목/수량만으로 특정 주문에 자동 연결하지 않는다.
+
+연결 상태는 DISCONNECTED/CONNECTING/AUTHENTICATING/SUBSCRIBING/SYNCING/READY/DEGRADED/ERROR로 표시하되 runtime 메모리 값이다. 상태가 저장 JSON에 들어가면 FAIL이다. backoff 기본 1/2/4/8/16/30초, 이후 30초, 인증 거부 재발급 1회, 연속 거부는 ERROR로 정지한다. 가짜 시세나 정상 상태로 fallback하지 않는다.
+
+## D8.foundation-r7.keys — 데이터 격리와 비교
+
+키는 배열의 canonical JSON으로 직렬화한다. 종목 데이터 키는 [source,connectionRef,market,instrument,channel,timeframe], 계좌 데이터는 [source,connectionRef,accountAlias,channel], item 키는 [projectId,formId,itemId]다. 토큰을 key에 포함하지 않는다. 문자열 연결 구분자에 의존하지 않는다. 기존 canonicalHash 계약을 사용하며 정규화된 값만 hash한다. side-effect commandId는 별도 불변 ID다.
+
+동일한 desired 재적용으로 provider generation이나 commandId를 새로 만들지 않는다. sequence/time/status는 runtime 데이터이며 desired hash에 포함하지 않는다. unknown 필드 삭제나 null→기본값 덮어쓰기로 사용자 설정을 잃지 않도록 kind normalize와 영속 validation을 분리한다.
+
+## D9.foundation-r7.effective — 실행 허용 조건
+
+visualEffective = project.enabled && project.id==activeProjectId && 기존 formEffective && seriesEffective.
+dataEffective = project.enabled && project.props.dataEnabled && item.enabled; 시각적 visible은 운용 구독을 해제하지 않는다.
+autoOrderEligible = dataEffective && project.props.automationEnabled && sessionArmed && accountReady && sourceFresh && !unresolvedCommand && !overloaded.
+
+sessionArmed는 false로 부팅하는 비영속 실행 허용값이다. 설정 복원만으로 이전 주문을 실행하지 않는다. 수동 명령은 명시적 사용자 실행과 계좌/데이터 정합성 검증을 요구한다. 장애 중 정정·취소의 허용 범위는 주문별 대조 규칙이 완성될 때 별도 표로 확정한다.
+
+## D10.foundation-r7.errors — 기본 실패 처리
+
+| 조건 | 결과 |
+| --- | --- |
+| 연결/로그인/구독 ack 누락 | READY 금지, 시간초과 표시, 공통 연결 재시도 |
+| 공급자 유량 거부 | 조회 큐를 제한, 오류/대기 표시, 주문 자동 재전송 0 |
+| 초기 snapshot 페이지 실패 | 기존 값 stale 표시, 완전 snapshot으로 교체 0 |
+| 이전 프로젝트/연결 결과 도착 | generation/key 검사로 폐기, 새 대상 값 변경 0 |
+| 주문 전송 후 응답 유실 | UNKNOWN 기록, 조회 대조, 자동 재전송 0 |
+| 계좌/체결 이벤트 유실 의심 | DEGRADED, 신규 자동 주문 중지, 서버 대조 |
+| 이벤트 큐 상한 초과 | 표시 병합과 거래 데이터 구분, overflow 기록, 재대조, 정상으로 숨김 금지 |
+| JSON 저장 실패/참조 오류 | 기존 유효 파일 보존, 오류 표시, 성공 응답 0 |
+| 등록되지 않은 kind | 원문 설정 보존, unsupported 표시, lifecycle 0 |
+| 같은 commandId 재요청 | 기존 기록 반환, 두 번째 wire 전송 0 |
+
+## D11.foundation-r7.acceptance — 합격 행렬
+
+| 검사 | 설계 기대 결과 |
+| --- | --- |
+| F01 | N=1/10/1000 동일 item 알고리즘, 무관한 kind 변경 0 |
+| F02 | 단일 key 이벤트의 normalize/update 수는 그 key 의존 대상 수만큼, 전체 item touch 0 |
+| F03 | 같은 JSON 2회 적용의 두 번째 ensure/update/remove 0 |
+| F04 | 새 세션과 fresh apply의 descriptor/최초 lifecycle trace 동일 |
+| F05 | 프로젝트 A→B→A 설정/ID 보존, 구독 ref 공유, 데이터 혼입 0 |
+| F06 | 로그인 거부·heartbeat 단절·재연결 시 중복 session 0, 구독 복구 후에만 READY |
+| F07 | TR 진행 중 이벤트/늦은 응답/순서 변경에서도 이전 generation 덮어쓰기 0 |
+| F08 | 부분체결/중복 체결/정정/취소/결과 불명에서 수량 중복 합산·재전송 0 |
+| F09 | 조건검색 초기 목록과 I/D 이벤트, 재접속 후 누락 종목 재대조 |
+| F10 | 숨김/비활성/unknown ADDON까지 JSON 왕복 보존, import 취소 write 0 |
+| F11 | 큐 overflow/디스크 실패/장시간 부하에서 오류가 표시되고 메모리 상한 유지 |
+| F12 | 신규 등록 ADDON 추가 시 ENGINE/BRIDGE/STATE 알고리즘 diff 0 |
+
+기존 T1~T13/U1~U13/C1~C5와 persistence P1~P8은 계속 유효하다. 실제 event 배열과 독립 기대값 파일을 먼저 만들고 구현 출력에서 기대값을 추출하지 않는다. 실제 키움 검증은 오프라인 fixture와 분리하며 장중 미실증을 PASS로 기록하지 않는다.
+
+## D12.foundation-r7.budgets — 시험 예산 제안
+
+공급자 보장치가 아닌 이 프로젝트의 초기 목표다. 기준 환경은 Windows x64 4 logical cores/16GiB, foreground Chromium 1탭, 서버 1프로세스. 측정 시 OS/CPU/런타임 버전을 결과에 기록한다.
+
+- 등록/저장 1000 item, 활성 100 data item, 고유 종목 20, 합계 초당 1000 입력 event를 30분 주입한다. 동일 활성 부하에서 저장 item 1/10/1000 비교는 별도 F01/F02로 수행한다.
+- 입력 수신→정규화 dispatch p95 20ms/p99 50ms, 입력 수신→foreground 화면 반영 p95 100ms/p99 250ms를 목표로 한다. 공급자 전송 지연과 TR queue 대기 시간은 별도 측정한다.
+- warm-up 5분 후 heap/RSS 증가 30분간 50MiB 이내. 이벤트 backlog 10000건 또는 16MiB 중 먼저 도달한 상한에서 overflow를 명시한다. 차트별 최대 1200봉, inactive cache 32개는 유지한다.
+- HTTP 시작 간격 기본 1200ms, in-flight 1, 대기 256건, 요청 timeout 15초. 이는 현재 모의 조회의 보수적 기본값이며 실전 처리량 보장으로 쓰지 않는다. 주문 큐를 일반 차트 조회보다 먼저 처리하되 발송 시 freshness를 다시 확인한다.
+- 정상 delta는 O(K+E_changed)이며 전체 초기 load는 O(N+E)로 분리한다. 실제 저장은 문서 크기에 비례하므로 market tick에서 desired serialize/write는 0이어야 한다.
+- 복구 시간은 연결 성공 후 구독 ack 및 필수 TR 대조 완료까지 측정한다. 공급자 지연 때문에 고정 완료 시간을 허위 보장하지 않는다. 60초 미완료 시 명시적 DEGRADED와 미완료 단계 표시, 복구 시도는 공통 정책으로 계속한다.
+
+## D13.foundation-r7.sequence — 보완 순서와 완료 산출물
+
+| 단계 | 선행 조건 | 산출물/통과 조건 |
+| --- | --- | --- |
+| R0 설계/좌표 | 현재 사용자 진행 지시 | Part B 제안 확정, 스키마 fixture/공개 계약/골든 trace 완성, 독립 T12 |
+| R1 검증기 | 기존 v6 승인 및 R0의 검사 계약 | static/semantic/recorder/t12 독립 실행, 미실행을 PASS로 출력하지 않음 |
+| R2 프로젝트 STATE | R0 승인 | v7 마이그레이션, 프로젝트 전환/저장/import, P1~P8 중 영속 항목 |
+| R3 범용 데이터 primitive | R0 승인 | key index/lease/queue/clock/session 및 feature-blind bridge, N=1000 locality |
+| R4 Kiwoom TR ADDON | R3 | 등록 스펙, 조회 공유/페이지/유량/인증, 기존 facade 단일 경로 이관 |
+| R5 WSS 시세 | R4 | LOGIN/PING/REG/REMOVE, snapshot+delta, 시장/종목 격리 |
+| R6 계좌·주문 | R5 | 서버 대조, journal, 부분체결·정정·취소·UNKNOWN, 외부 전송 없는 장애 시험 |
+| R7 조건검색 | R5 | 목록/초기/편입·이탈/해제/재연결 결과 대조 |
+| R8 UI·지표 증분 | R2/R5 | polling 제거, 선택 종목/지표 귀속, key 의존 대상만 계산/렌더 |
+| R9 전체 실증 | R1~R8 | 기존 acceptance + F01~F12 + 부하/장애 + 장중 실제 읽기 검증 |
+
+각 단계는 설계→회귀 기대값→경계 1개 구현→검증→todo 갱신→commit/push 순으로 진행한다. 어떤 단계도 후속 단계가 있다는 이유로 미완료를 완료 처리하지 않는다. 본 표는 한 번의 코드 변경으로 전 단계를 합치라는 지시가 아니다.
+
+## D6.foundation-r7.resource-types — 공통 자원 타입 계약
+
+아래는 D6.primitives 표를 구체화한 설계 계약이다. 제품 구현 완료를 뜻하지 않는다.
+
+- ResourceKey는 canonical JSON 배열을 직렬화한 비어 있지 않은 string(UTF-8 2048 bytes 이하)이다. 빈 key/상한 초과는 INVALID_INPUT, 자원 생성 0이다.
+- Descriptor는 {version:1,mode:"request"|"stream",profileId:string,config:JSON object,delivery:"ordered"|"latest",queueLimit:int,byteLimit:int}. profileId는 등록된 선언적 protocol profile의 불변 ID다. config에는 비밀값 대신 credentialRef를 둔다. 미등록 profile은 UNSUPPORTED_PROFILE. queueLimit 범위 1~10000, byteLimit 범위 1024~16777216, 기본은 각각 10000/16777216. ordered는 모든 이벤트를 순서대로 전달, latest는 같은 key의 미전달 표시값만 대체한다. 원시 체결/주문 이벤트는 ordered로 등록한다.
+- DescriptorHash는 정규화 Descriptor 전체의 기존 canonicalHash다. 동일 key에 다른 hash로 acquire하면 KEY_CONFLICT를 반환하고 기존 자원은 유지한다. 갱신은 기존 lease release 후 다른 key 또는 마지막 lease가 해제된 key의 acquire로 표현한다.
+- Lease는 {id:int,key:string}의 비영속 opaque handle이다. id는 ENGINE 인스턴스 내 1부터 단조 증가하며 재사용하지 않는다. 이미 해제된 lease의 release는 no-op, 다른 인스턴스의 lease는 INVALID_HANDLE이다. 역직렬화된 JSON 객체를 유효 lease로 받지 않는다.
+- Error는 {code:string,retryable:boolean,message:string,key:string|null}이다. 허용 code는 INVALID_INPUT/INVALID_HANDLE/UNSUPPORTED_PROFILE/KEY_CONFLICT/TIMEOUT/CANCELLED/AUTH_REJECTED/REMOTE_ERROR/OVERFLOW/IO_ERROR/PROTOCOL_ERROR/CLOSED. message에는 credential/계좌번호/원시 주문 body를 넣지 않는다. raw cause는 노출하지 않는다.
+- 수신 Event는 {key,generation:int,seq:int,receivedAt:int,payload:JSON}. generation은 연결 시도마다 증가, seq는 generation 내 수신 프레임 처리 순서로 1부터 증가한다. receivedAt은 주입된 monotonic clock의 밀리초다. 거래소 시간과 혼용하지 않는다.
+- observe는 등록 이후 event만 전달한다. 현 snapshot 조회는 별도 read(key) 계약으로 {value,quality,generation,updatedAt}|null을 반환한다. 여러 listener는 등록 순서로 호출한다. 한 listener 예외는 해당 listener 오류로 보고하고 나머지는 계속 호출한다. callback 도중 off된 listener는 그 이후 호출하지 않는다.
+- request waiter는 개별 취소 가능하다. 모든 waiter 취소 후 아직 발송 전이면 underlying 작업을 제거한다. 발송 후 원격 취소나 rollback을 가정하지 않는다. sideEffect 요청은 공유 캐시/자동 재시도를 적용하지 않는다. request의 정확한 wire status 판정은 profile codec이 정규화한다.
+- 자원 해제 도중 같은 key acquire는 기존 종료를 되돌리지 않는다. 새 generation 자원을 생성하되 provider 연결당 control 큐에서 REMOVE ack 후 REG를 직렬 처리한다. timeout은 구세대 연결을 닫고 새 연결의 정상 acquire로 처리한다. ADDON이 별도 pending/restore 기계를 만들지 않는다.
+- flush는 같은 turn의 dirty key 집합만 코드포인트 순으로 처리한다. 같은 key의 반복 표시 업데이트는 1회, ordered 원시 이벤트는 병합하지 않는다. publish는 다른 key를 스캔하지 않는다. 전체 정렬은 초기 desired 목록과 명시적 전체 교체에 한정한다.
+
+## D10.foundation-r7.reconciliation — 데이터 충돌 처리 계약
+
+| 상황 | 정규화/대조 규칙 |
+| --- | --- |
+| snapshot 요청 전/중 event | 구독 ack 후 같은 generation의 원시 event를 버퍼링. snapshot 완료 시 순서 증명 가능한 event만 병합. 시간만 같다는 이유로 동일 체결로 간주하지 않음 |
+| 종목 체결의 고유 ID 없음 | 연속 같은 가격/수량을 무조건 중복 제거하지 않음. 수신 순서로 처리하며 재연결 구간은 TR 재조회로 봉을 교체. 분봉은 잠정값 표시 후 종료 봉을 TR로 재확인 |
+| 가격/잔고 절대값 event | 델타 수량으로 더하지 않고 해당 값으로 투영. snapshot과의 우선순위를 증명 못하면 DEGRADED, 관련 TR 재조회 |
+| 체결번호가 있는 계좌 event | source/계좌별칭/거래일/주문번호/체결번호 키로 동일 건 중복 합산 차단. 핵심 필드 충돌 시 임의 덮어쓰기 대신 대조 필요 상태 |
+| 체결번호 없음/부분 필드 | 응답 원문에서 완전 상태를 추정하지 않음. 제공된 필드만 반영, 미체결/체결 TR 요청을 같은 key로 합침 |
+| snapshot 도중 계좌 변경 | 요청 시작/완료 사이 관련 event 존재 시 snapshot만으로 READY 선언 금지. 후속 조회로 대조하며 이벤트가 계속돼 안정 상태가 확인되지 않으면 DEGRADED 유지 |
+| 조건식 초기 응답과 I/D | 동일 조건식/generation에 받은 초기 결과 뒤 버퍼의 I/D를 수신 순서로 적용. 중복 I/D는 set 연산으로 무해. 응답과 event 경합을 검증 못한 경우 초기 결과 재조회로 대조 |
+| 시세 없음 | 장중 무체결 종목과 transport 단절을 구분. 마지막 데이터 시각과 연결 heartbeat를 별도로 표시하며 가짜 봉을 만들지 않음 |
+| 날짜 경계 | 거래일이 없는 HHmmss만으로 이전 날짜를 확정하지 않음. reconnect/날짜 전환 시 초기 snapshot 재조회, KST 기준 세션 날짜가 검증되기 전 자동매매 eligible=false |
+
+이 계약은 불확실한 데이터를 정상으로 승격하지 않는 보수적 기준이다. 공급자가 snapshot cut/전역 sequence를 제공하지 않는 경로에서 선형화된 무손실 동기화를 주장하지 않는다. 실제 데이터별 대조가 READY로 수렴하는지 R5/R6 장중 acceptance에서 검증해야 한다.
+
+## D4.foundation-r7.command-journal — 주문 증거와 재실행 방지
+
+위치 제안은 data/<source>/commands/<connectionAlias>/YYYYMMDD.jsonl이다. workspace와 분리하며 alias는 [a-zA-Z0-9_-]{1,64}로 검증한다. 파일 경로에 계좌번호·토큰을 넣지 않는다. 한 프로세스의 connectionAlias별 단일 writer만 append한다. 다중 서버 프로세스 운용은 거부한다.
+
+record는 {version:1,seq,commandId,event,recordedAt,payload}. seq는 파일 내 1부터 단조 증가한다. commandId는 UI/서버 command ingress가 발급한 UUID 문자열이며 같은 명령 재요청은 동일 ID를 유지한다. recordedAt은 주입 UTC epoch milliseconds다. event는 PREPARED/ACKNOWLEDGED/REJECTED/UNKNOWN/RECONCILED다.
+
+PREPARED payload는 {projectId,formId,itemId,connectionAlias,instrument,market,action,quantity,price,originalOrderId,requestHash}. action은 BUY/SELL/AMEND/CANCEL. quantity는 정수, price와 originalOrderId는 null 허용 여부를 wire catalog가 검증한다. PREPARED append+flush+fsync 성공 후에만 wire 전송한다. 동일 commandId와 다른 requestHash는 CONFLICT로 거부한다. PREPARED만 남은 재시작도 UNKNOWN으로 처리하며 전송하지 않는다.
+
+ACKNOWLEDGED는 providerOrderId와 provider 응답 결과만 기록한다. 체결완료를 뜻하지 않는다. REJECTED는 명백한 원격 거부에서만 사용하며 timeout/비JSON/연결 유실은 UNKNOWN이다. UNKNOWN은 자동 재전송 금지이며 주문번호가 확인되면 주문/체결 조회로 RECONCILED 기록한다. 주문번호 없이 종목·수량·시각이 유사한 후보만 있으면 미확정으로 남기고 후보와 확인 필요 상태를 표시한다. 조회 결과에 없다는 이유만으로 전송되지 않았다고 판정하지 않는다.
+
+동일 commandId 요청은 최초 PREPARED payload와 현재 기록을 반환한다. append 실패는 IO_ERROR, wire 전송 0이다. 잘린 마지막 줄/seq 불연속/같은 ID의 충돌 기록은 읽기 복구 오류로 표시하고 해당 connection의 신규 주문을 막는다. 파일 자동 삭제/회전 중 덮어쓰기는 하지 않으며 날짜별 새 파일에 이어간다. 보존/정리 정책은 실제 거래 사용 전 별도 설계로 지정한다. 원문 키/토큰은 기록하지 않는다.
+
+## D14.foundation-r7.review — 구현 전 남은 승인·검토
+
+1. 해결: 2026-09-06 사용자 `예`로 B1~B5/B7/B13/B18 확장 승인 및 반영. 동일 좌표에 대한 재승인은 요청하지 않는다.
+2. resource-types/reconciliation/command-journal 계약 추가 완료. 남은 항목은 provider 선언 스키마, wire 응답 상관관계/timeout과 데이터별 reducer의 완전 필드 매핑이다. 이 부분은 일반적인 설계 방향만으로 구현하지 않는다.
+3. canonical v7 fixture 작성 및 내부 v6 무손실 검증 완료. F01~F12 실제 골든 event 배열과 독립 T12 검토는 미완료. 자기 검토를 독립 검토로 표기하지 않는다.
+
+상기 항목이 남아 있으므로 이 실행 설계안은 완성/승인된 제품 명세가 아니다. 기존 realtime-foundation OPEN 1~4는 이 상세 항목과 연계 관리한다. 목표·순서·공식 wire 카탈로그·성능 측정 조건은 이번 설계 tranche 산출물이다.

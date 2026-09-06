@@ -14,7 +14,7 @@ Part B  이 프로젝트의 어휘/좌표 슬롯   (프로젝트마다 작성)
 ---
 # PART A — 프로젝트 무관 영구 규칙
 ## A0. 권위와 세션 복구 [HARD]
-세션 시작 또는 `세션복구` 시 읽는 파일은 오직 둘이다.
+세션 시작 또는 `세션복구!` 명령 시 복구를 위해 먼저 읽는 파일은 오직 둘이다. `세션복구`도 같은 명령으로 처리한다.
 ```
 1. rules.md   영구 불변 규칙
 2. todo.md    한 일 / 할 일 / 현재 상태
@@ -27,9 +27,9 @@ Part B  이 프로젝트의 어휘/좌표 슬롯   (프로젝트마다 작성)
 ```
 rules.md    영구 규칙        (불변, 사용자 지시로만 변경)
 todo.md     가변 인수인계     (매 tranche 갱신)
-design.md   구현 명세/설계도  (코드 선행 조건, A2.5~A2.7)
+README.md   프로젝트 설명·사용법·구현 명세/설계도 (코드 선행 조건, A2.5~A2.7)
 ```
-`design.md`는 **복구 권위가 아니다.** 세션 복구는 여전히 rules.md + todo.md 2개만 읽는다.
+`README.md`는 **복구 권위가 아니다.** 세션 복구는 여전히 rules.md + todo.md 2개만 읽는다.
 구현에 착수할 때 todo.md가 지목한 설계 항목만 열어 본다. 설계도가 커져도 복구 비용은
 증가하지 않아야 한다.
 권위 순서 — 당위(무엇이 옳은가) 판정:
@@ -37,14 +37,14 @@ design.md   구현 명세/설계도  (코드 선행 조건, A2.5~A2.7)
 사용자의 현재 명시적 지시
 > rules.md
 > todo.md
-> design.md
+> README.md
 > 실제 코드
 > 그 외 모든 문서·대화
 ```
 권위 순서 — 사실(무엇이 실제로 일어나는가) 판정:
 ```
 실행/테스트 증거
-> design.md 기대값
+> README.md 기대값
 > 문서 서술
 ```
 즉 코드가 설계와 다르면 **코드가 틀린 것**이고, 설계가 rules.md와 다르면 **설계가 틀린
@@ -173,7 +173,7 @@ Add-on 추가 시 ENGINE/BRIDGE/STATE 코드는 수정되지 않는다.
 ```
 착수 조건:
 ```
-C1  design.md가 존재하고 A2.6의 필수 항목이 모두 작성되어 있다.
+C1  README.md가 존재하고 A2.6의 필수 항목이 모두 작성되어 있다.
 C2  OPEN QUESTIONS 개수 = 0 이다.
 C3  A5의 T12(모호성 테스트)를 통과했다.
 C4  사용자가 APPROVED로 승인했다.
@@ -203,14 +203,14 @@ APPROVED   사용자 승인. 해당 범위 코드 허용.
 목적은 '설계도의 빈칸을 채우는 것' 하나뿐이다.
 분리된 임시 경로(별도 branch 또는 spike 폴더)에서만 수행한다.
 merge 금지. 재사용 금지. tranche 종료 시 삭제한다.
-산출물은 코드가 아니라 design.md에 확정된 결정과 근거뿐이다.
+산출물은 코드가 아니라 README.md에 확정된 결정과 근거뿐이다.
 ```
 스파이크 코드가 제품 경로로 넘어오면 그 자체가 결함이다.
 ### A2.5.3 구조 불명확 시 [HARD]
 구조가 불명확하면 코드를 쓰지 않는다. 정상 단일 경로를 설계도에서 먼저 확정한다.
 설계도에 없는 문제를 코드로 탐색해 해결하려는 시도는 오염의 출발점이다.
 ## A2.6 설계도 필수 구성 — BLUEPRINT CONTENTS [HARD]
-`design.md`는 아래 D1~D14를 모두 포함한다. 하나라도 비어 있으면 상태는 DRAFT다.
+`README.md`는 아래 D1~D14를 모두 포함한다. 하나라도 비어 있으면 상태는 DRAFT다.
 각 항목에는 고유 설계 ID를 부여한다(예: `D5.kind.line`).
 ```
 D1   범위와 비범위
@@ -245,12 +245,12 @@ D14  OPEN QUESTIONS
      - 미결정 사항 목록. 여기에 항목이 있으면 그 항목이 영향을 주는 범위의 코드는 금지.
        APPROVED 조건은 이 목록이 비는 것이다.
 ```
-`design.md`는 rules.md의 규칙을 재서술하지 않는다. 규칙을 다시 적으면 두 문서가 서로
+`README.md`는 rules.md의 규칙을 재서술하지 않는다. 규칙을 다시 적으면 두 문서가 서로
 표류한다. 설계도는 규칙을 **이 프로젝트의 구체 값으로 인스턴스화**하기만 한다.
 ## A2.7 구현 결정성 계약 — DETERMINISTIC IMPLEMENTATION [HARD]
 설계도의 합격 기준은 분량이 아니라 **선택 여지의 부재**다.
 ```
-서로 독립적으로 작업하는 두 구현자가 design.md만 읽고 구현했을 때,
+서로 독립적으로 작업하는 두 구현자가 README.md만 읽고 구현했을 때,
 관측 가능한 동작(공개 시그니처 · operation trace · 오류 · 영속 형식)이 일치해야 한다.
 일치하지 않는 지점은 구현자의 재량이 아니라 '설계 누락'이다.
 ```
@@ -310,7 +310,7 @@ I11 DESIGN-FIRST
     제품 코드의 존재는 APPROVED 설계 항목의 존재를 전제한다.
     설계 없는 코드, 코드에 맞춘 사후 설계는 모두 결함이다.
 I12 IMPLEMENTATION DETERMINISM
-    design.md만으로 독립 구현자들이 동일한 관측 가능 동작에 도달한다.
+    README.md만으로 독립 구현자들이 동일한 관측 가능 동작에 도달한다.
     구현자 재량이 남는 지점은 설계 누락이다.
 ```
 ## A4. PASS의 정의 [HARD]
@@ -326,7 +326,7 @@ I1..I12 invariant PASS
 `ARCH PASS`와 `repo-wide PASS`를 혼동하지 않는다. 잔여 remediation이 있으면
 `REMEDIATION_REQUIRED`를 유지한다.
 ## A5. 자동검증 계약 [HARD]
-테스트는 현재 구현을 보존하려고 만들지 않는다. **rules.md와 design.md에서 직접 파생**한다.
+테스트는 현재 구현을 보존하려고 만들지 않는다. **rules.md와 README.md에서 직접 파생**한다.
 기대값의 출처는 D11 골든 trace이며, 현재 구현의 출력이 아니다.
 semantic operation recorder를 둔다. 실제 부작용을 실행하지 않고도 Bridge가 발생시킨
 operation을 기록한다. 기록 스키마는 다음으로 고정한다.
@@ -353,7 +353,7 @@ T9  N = 1 / 10 / 1000            -> operation 종류 동일, 횟수만 N 비례 
 T10 신규 kind 등록               -> ENGINE/BRIDGE/STATE diff = 0             [I8]
 T11 1개 변경 시 touch된 item 수  -> 변경 item 수에 비례 (상수 배)            [I9]
 T12 설계 모호성 테스트                                                       [I12]
-    독립 검토자(또는 코드를 보지 않은 새 세션)가 design.md만 읽고 작성한
+    독립 검토자(또는 코드를 보지 않은 새 세션)가 README.md만 읽고 작성한
       (a) 공개 시그니처 목록
       (b) 대표 시나리오 골든 trace
     가 원본 D6/D11과 일치한다. 불일치 항목은 전부 설계 결함으로 기록한다.
@@ -425,7 +425,7 @@ STATE 스키마 변경은 D4의 마이그레이션 규칙으로 흡수하고, re
 ## A10. 작업 절차 — micro-tranche [HARD]
 ```
 0. 설계 게이트 확인 (A2.5)
-   - design.md 상태가 APPROVED이고 해당 범위 설계 ID가 확정되었는가?
+   - README.md 상태가 APPROVED이고 해당 범위 설계 ID가 확정되었는가?
    - 아니면 이 tranche는 '설계 tranche'다. 코드를 쓰지 않는다.
 1. 실패 분류
 2. 불변식 충돌 확인 (A3)
@@ -453,7 +453,7 @@ STATE 스키마 변경은 D4의 마이그레이션 규칙으로 흡수하고, re
 구현 중 설계 변경이 필요해지면 코드와 설계를 동시에 바꾸지 않는다.
 ```
 1. 코드 작업 중단
-2. design.md의 해당 ID를 갱신하고, 영향받는 D11 골든 trace를 함께 갱신
+2. README.md의 해당 ID를 갱신하고, 영향받는 D11 골든 trace를 함께 갱신
 3. 필요 시 T12 재수행
 4. 사용자 재승인(APPROVED)
 5. 그 다음 tranche에서 코드 반영
@@ -474,7 +474,7 @@ frozen legacy 경계가 지정되어 있으면 유지한다.
 중단하고 사용자 판단을 받는 경우는 다음뿐이다.
 ```
 실제 UI/사용자 환경에서만 판정 가능한 결과 (WYSIWYG · 조작감 · 시각 확인)
-design.md 상태가 APPROVED가 아닌 범위의 코드 (A2.5)
+README.md 상태가 APPROVED가 아닌 범위의 코드 (A2.5)
 RULE_CONFLICT (A0.2)
 사용자 데이터·기존 산출물을 되돌릴 수 없게 바꾸는 변경
 설계 변경 재승인 (A10.2)
@@ -542,9 +542,13 @@ RULE_CONFLICT (A0.2)
 rules.md 전문 읽기 -> todo.md 읽기 -> 필요 시 현재 좌표 검증
 -> 설계 게이트 확인 -> todo.md 할 일의 첫 미완료 항목부터 계속
 ```
-design.md는 복구 시 전문을 읽지 않는다. todo.md가 지목한 설계 ID만 열어 본다.
+README.md는 복구 시 전문을 읽지 않는다. todo.md가 지목한 설계 ID만 열어 본다.
 이미 문서에 답이 있는 것을 사용자에게 다시 묻지 않는다. 진행 보고는 `한 일 / 할 일`
 두 항목으로 짧게 한다.
+
+`세션복구!`는 다음 절차를 실행하라는 명령이다. rules.md에서 작업방식·4축 경계·승인/검증 절차를, todo.md에서 한 일·할 일·현재 좌표·승인 범위·미검증 사항을 복원한다. git branch/status와 최근 commit을 읽기 전용으로 대조하고 로컬 변경을 보존한다. 다음 설계 ID에 해당하는 README.md 절만 확인한 뒤 첫 미완료 작업을 재개한다. 기록과 실제 상태가 다르면 관측 사실을 todo.md에 기록하며 완료나 승인을 추정하지 않는다. 문서에 있는 결정은 다시 묻지 않는다.
+
+각 작업 종료 전 todo.md의 현재 좌표, 완료/미완료, 검증 근거, 다음 행동, 차단 사유 및 승인 범위를 갱신한다. README.md에 가변 진행률을 중복 관리하지 않는다. 세션 복구는 작업 문맥의 복원이며 프로그램의 JSON 상태 복원과는 별도다.
 ## A13. 최종 판정 질문 [HARD]
 코드 작성·merge 전에 전부 `YES`여야 한다.
 ```
@@ -562,7 +566,7 @@ Q11 Add-on은 type/props 의미만 추가하는가?                     [A1.2]
 Q12 Core는 generic primitive만 수행하는가?                     [A1.1]
 Q13 STATE는 desired state만 저장하는가?                        [I10]
 Q14 UI는 desired-state command만 쓰는가?                       [A7]
-Q15 design.md가 APPROVED이고 OPEN 항목이 0인가?                [I11]
+Q15 README.md가 APPROVED이고 OPEN 항목이 0인가?                [I11]
 Q16 이 변경이 구현하는 설계 ID를 특정할 수 있는가?             [I11]
 Q17 설계도만 읽은 제3자가 같은 구현에 도달하는가?              [I12]
 Q18 기대값의 출처가 D11 골든 trace이고 현재 출력이 아닌가?     [A5]
@@ -585,16 +589,25 @@ AI가 세션마다 달라져도
 Part A의 추상 용어를 이 프로젝트의 실체에 1:1로 매핑한다. **이 표만 프로젝트마다 다시 쓴다.**
 여기에 적히지 않은 어휘는 Part A의 규칙 해석에 사용하지 않는다.
 ```
-B1  ENGINE 위치        : web/js/core.js(차트 primitive), web/js/frame.js(자식폼 primitive)
-B2  ADDON 위치         : web/js/addons.js(차트 series kind), web/js/screens/<kind>.js(screen kind)
-B3  BRIDGE 위치        : web/js/runtime.js(series diff), web/js/desk.js(form diff)
-B4  STATE 위치/스키마  : state/workspace.json / schemaVersion 6
+B1  ENGINE 위치        : web/js/core.js(차트 primitive), web/js/frame.js(자식폼 primitive),
+                         web/js/engine/(범용 index/batch/buffer),
+                         app/engine/(범용 request/stream/queue/clock/journal)
+B2  ADDON 위치         : web/js/addons.js(차트 series kind), web/js/screens/<kind>.js(screen kind),
+                         app/addons/(단일 protocol/시세/계좌/주문/조건식 item 변환)
+B3  BRIDGE 위치        : web/js/runtime.js(series diff), web/js/desk.js(form diff),
+                         app/runtime.py(서버 generic desired diff)
+B4  STATE 위치/스키마  : state/workspace.json / schemaVersion 7 프로젝트 envelope,
+                         프로젝트 내부 workspace schemaVersion 6;
+                         web/js/project-state.js(프로젝트 desired 명령/projection)
 B5  primitive 어휘     : chart, series, priceLine, markers, pane, frame, contentHost, rect,
-                         zIndex, visibility, titleBar, drag, resize, minimize, maximize, destroy
+                         zIndex, visibility, titleBar, drag, resize, minimize, maximize, destroy,
+                         resource, stream, request, subscribe, release, buffer, batch, index, journal
 B6  금지 어휘          : candles, ma, volume, macd, rsi, amount, signals, chartScreen,
                          quote, order, log, 0101, 0615, 8949, 0900, 종목연동, 가상화면정책
-B7  item 식별자 규칙   : form은 f<증가정수>, series는 form 내부의 <kind><증가정수>;
-                         발급 후 불변·재사용 금지, 카운터는 STATE seq가 소유
+B7  item 식별자 규칙   : project는 p<증가정수>, form은 프로젝트 내부의 f<증가정수>,
+                         series는 form 내부의 <kind><증가정수>;
+                         발급 후 불변·재사용 금지, 카운터는 STATE seq/projectSeq가 소유;
+                         완전 참조는 {projectId,formId,itemId}
 B8  effective 계산식   : formEffective = globalOn && form.visible &&
                          (form.allVd || form.vd == activeVd);
                          seriesEffective = formEffective && item.enabled && item.visible
@@ -606,16 +619,19 @@ B12 acceptance 절차    : start.bat 실행 후 상단 1~8 클릭/Ctrl+1~8, VD�
                          모든 VD 표시의 동일 위치, 전체/현재 VD 종목연동을 실제 브라우저에서 확인
 B13 frozen 경계        : app/store.py의 기존 generic 경로 CRUD와 app/main.py의 /api/node 계약은 유지;
                          generic 복구용 GET /api/state/recovery,
-                         GET /api/state/recovery/raw, PUT /api/state/recovery 추가만 허용;
+                         GET /api/state/recovery/raw, PUT /api/state/recovery 허용;
+                         TR/WSS/프로젝트 연계 서비스 endpoint 추가는 기존 /api/node 및
+                         generic 경로 CRUD 계약 변경 없이 허용;
                          web/vendor/lwc.standalone.js는 변경 금지
-B14 design.md 위치     : design.md
+B14 README.md 위치     : README.md
 B15 설계 ID 규칙       : D<1~14>.<영역>.<항목>
 B16 추적성 표기 방식   : 공개 함수 바로 위 주석 `// Design: D<번호>.<영역>.<항목>`;
                          Python은 `# Design: ...`, 테스트명은 설계 ID를 포함
-B17 T12 수행 방법      : 코드를 보지 않은 새 세션이 design.md만 읽고 공개 시그니처와
+B17 T12 수행 방법      : 코드를 보지 않은 새 세션이 README.md만 읽고 공개 시그니처와
                          D11 trace를 재작성한 뒤 check.py --t12가 원본과 비교
-B18 canonical fixture  : state/workspace.v6.fixture.json
-B19 골든 trace 위치    : 현재 design.md D11;
+B18 canonical fixture  : state/workspace.v7.fixture.json (프로젝트 envelope),
+                         state/workspace.v6.fixture.json (내부 workspace 및 마이그레이션 원본)
+B19 골든 trace 위치    : 현재 README.md D11;
                          목표 tests/fixtures/desk-traces.v6.json (현재 미생성)
 B20 승인 기록 위치     : todo.md `할 일 > 현재 좌표`의 `설계 상태` 필드
 B21 검증 실행 절차     : git status --short --branch -> git pull --ff-only ->

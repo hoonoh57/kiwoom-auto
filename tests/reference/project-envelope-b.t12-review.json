@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "scope": "project-envelope-b",
+  "reviewer": {"id": "review_envelope_b", "independent": true},
+  "readFiles": ["rules.md", "README.md"],
+  "readmeSha256": "fee11933eee7d965e596adf483853eb50573614922e36369f5297f12ccfcd921",
+  "rulesSha256": "cc5d71548f84ede8445ea48ed4019056ea6a8ae31a4578526e8f266e11e0cc6c",
+  "verdict": "PASS",
+  "signatures": ["validateProjectEnvelopeJson(text, validateWorkspace) -> ValidationResult (sync)"],
+  "contract": {
+    "success": "{ok:true,value:parsedRoot}",
+    "failure": "{ok:false,code,path}; expected input errors do not throw; no raw document, secret or stack fields",
+    "strictEnvelope": "Exact own root keys schemaVersion/projectSeq/activeProjectId/projectOrder/projects; version 7; safe integer projectSeq in [2,MAX_SAFE_INTEGER], greater than every member ID number. ProjectId is p followed by a positive decimal integer without leading zero, at most MAX_SAFE_INTEGER. Nonempty unique projectOrder; projects own keys exactly match it. Each project has exactly name/enabled/props/workspace. Name is already trimmed, 1..32 Unicode code points, unique by NFKC then locale-independent toLowerCase. enabled is boolean. props has exactly connectionRef/dataEnabled/automationEnabled, connectionRef matches [a-zA-Z0-9_-]{1,64}, flags are boolean. workspace is non-null non-array object, schemaVersion 6. At least one enabled project; active ID exists and is enabled. No normalization or default insertion; unknown workspace content retained if callback accepts; duplicate source object keys use last JSON.parse value.",
+    "callback": "After ALL structural checks, visit projectOrder. Invoke validateWorkspace(JSON deep clone of workspace, projectId) once per visited project; stop at first result other than strict true or synchronous throw. Promise is rejected synchronously without awaiting. Callback mutations cannot reach returned parsedRoot. Fresh parsed objects on each call. Callback external side effects are outside module guarantee.",
+    "errorPriority": [
+      "INVALID_ARGUMENT / empty path before parsing",
+      "INVALID_JSON / empty path for parse or any nonfinite number",
+      "ROOT_TYPE / empty path",
+      "ROOT_KEYS / empty path",
+      "ROOT_VERSION /schemaVersion",
+      "PROJECT_SEQ /projectSeq for type or range",
+      "PROJECT_ID /activeProjectId",
+      "PROJECT_ORDER /projectOrder",
+      "PROJECT_ID or PROJECT_DUPLICATE /projectOrder/<index>, ascending index",
+      "PROJECT_MEMBERS /projects",
+      "PROJECT_SEQ /projectSeq for sequence <= maximum ID",
+      "Per project in projectOrder, complete shape then name then enabled then props then connectionRef then dataEnabled then automationEnabled then workspace before next project",
+      "NO_ENABLED_PROJECT /projects",
+      "ACTIVE_PROJECT /activeProjectId",
+      "WORKSPACE_INVALID /projects/<id>/workspace in callback visit order"
+    ],
+    "paths": "JSON Pointer: empty root; escape ~ as ~0 and / as ~1 in keys",
+    "effects": {"lifecycle": [], "fileWrites": 0, "requests": 0},
+    "equality": "Object key order ignored, array order and values/types retained, -0 equivalent to JSON number 0. No new hash."
+  },
+  "scenarios": [
+    {"id":"PEB1","expected":{"ok":true,"value":"E","callbackCalls":1,"callbackOrder":["p1"],"lifecycle":[]}},
+    {"id":"PEB2","expected":{"ok":true,"value":"E","marker":"keep","callbackCalls":1,"callbackOrder":["p1"],"lifecycle":[]}},
+    {"id":"PEB3","expected":{"ok":false,"code":"ROOT_KEYS","path":"","callbackCalls":0,"lifecycle":[]}},
+    {"id":"PEB4","expected":{"ok":false,"code":"PROJECT_DUPLICATE","path":"/projectOrder/1","callbackCalls":0,"lifecycle":[]}},
+    {"id":"PEB5","expected":{"ok":false,"code":"PROJECT_NAME_DUPLICATE","path":"/projects/p2/name","callbackCalls":0,"lifecycle":[]}},
+    {"id":"PEB6","expected":{"ok":false,"code":"NO_ENABLED_PROJECT","path":"/projects","callbackCalls":0,"lifecycle":[]}},
+    {"id":"PEB7","expected":{"ok":false,"code":"ACTIVE_PROJECT","path":"/activeProjectId","callbackCalls":0,"lifecycle":[]}},
+    {"id":"PEB8","expected":{"ok":false,"code":"PROJECT_SEQ","path":"/projectSeq","callbackCalls":0,"lifecycle":[]}},
+    {"id":"PEB9","expected":{"ok":false,"code":"WORKSPACE_INVALID","path":"/projects/p2/workspace","callbackCalls":2,"callbackOrder":["p1","p2"],"lifecycle":[]}},
+    {"id":"PEB10","expected":{"ok":false,"code":"CONNECTION_REF","path":"/projects/p1/props/connectionRef","callbackCalls":0,"lifecycle":[]}},
+    {"id":"PEB11","expected":{"ok":true,"value":"modified E including unchanged added unknown workspace kind/props","callbackCalls":1,"callbackOrder":["p1"],"preserveUnknownWorkspace":true,"lifecycle":[]}},
+    {"id":"PEB12","expected":{"ok":true,"value":"E2 with projectOrder [p2,p1]","projectOrder":["p2","p1"],"callbackCalls":2,"callbackOrder":["p2","p1"],"lifecycle":[]}},
+    {"id":"PEB13","expected":{"ok":false,"code":"FLAG_TYPE","path":"/projects/p1/props/dataEnabled","callbackCalls":0,"lifecycle":[]}},
+    {"id":"PEB14","expected":{"ok":false,"code":"WORKSPACE_INVALID","path":"/projects/p1/workspace","callbackCalls":1,"callbackOrder":["p1"],"synchronous":true,"lifecycle":[]}}
+  ],
+  "mismatches": [],
+  "resolvedFindings": [
+    {
+      "id": "PEB-D4-D10-V6-PRECEDENCE",
+      "status": "RESOLVED",
+      "reason": "Re-read D1 through D14 after D4 correction. D4 now explicitly follows D10: a normal whole v6 workspace with different root keys fails ROOT_KEYS at empty path; an otherwise correctly keyed root with schemaVersion 6 fails ROOT_VERSION at /schemaVersion. Both cases have zero callback calls. No automatic wrap occurs. PEB1 through PEB14 and the reconstructed public signature remain unchanged. No remaining blocking mismatch found in this scope."
+    }
+  ]
+}

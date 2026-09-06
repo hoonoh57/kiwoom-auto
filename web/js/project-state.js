@@ -67,3 +67,72 @@ export function selectProject(root, projectId) {
   if (root.projects[projectId]?.enabled !== true) fail('PROJECT_DISABLED');
   return root.activeProjectId === projectId ? root : { ...root, activeProjectId: projectId };
 }
+
+// Design: D6.project-envelope-b.api, D10.project-envelope-b.error-order
+export function validateProjectEnvelopeJson(text, validateWorkspace) {
+  const invalid = (code, path = '') => ({ ok: false, code, path });
+  const keys = (value, names) => object(value) && Object.keys(value).length === names.length
+    && names.every(name => Object.hasOwn(value, name));
+  const idValid = id => typeof id === 'string' && id.trim() === id && /^p[1-9][0-9]*$/.test(id)
+    && Number.isSafeInteger(Number(id.slice(1)));
+  if (typeof text !== 'string' || typeof validateWorkspace !== 'function') return invalid('INVALID_ARGUMENT');
+  let root;
+  try {
+    root = JSON.parse(text, (_, value) => {
+      if (typeof value === 'number' && !Number.isFinite(value)) throw new Error();
+      return value;
+    });
+  } catch { return invalid('INVALID_JSON'); }
+  if (!object(root)) return invalid('ROOT_TYPE');
+  if (!keys(root, ['schemaVersion', 'projectSeq', 'activeProjectId', 'projectOrder', 'projects'])) return invalid('ROOT_KEYS');
+  if (root.schemaVersion !== PROJECT_SCHEMA) return invalid('ROOT_VERSION', '/schemaVersion');
+  if (!Number.isSafeInteger(root.projectSeq) || root.projectSeq < 2) return invalid('PROJECT_SEQ', '/projectSeq');
+  if (!idValid(root.activeProjectId)) return invalid('PROJECT_ID', '/activeProjectId');
+  if (!Array.isArray(root.projectOrder) || !root.projectOrder.length) return invalid('PROJECT_ORDER', '/projectOrder');
+  const ids = new Set();
+  let maxId = 0;
+  for (const [index, id] of root.projectOrder.entries()) {
+    if (!idValid(id)) return invalid('PROJECT_ID', `/projectOrder/${index}`);
+    if (ids.has(id)) return invalid('PROJECT_DUPLICATE', `/projectOrder/${index}`);
+    ids.add(id);
+    maxId = Math.max(maxId, Number(id.slice(1)));
+  }
+  if (!keys(root.projects, root.projectOrder)) return invalid('PROJECT_MEMBERS', '/projects');
+  if (root.projectSeq <= maxId) return invalid('PROJECT_SEQ', '/projectSeq');
+  const names = new Set();
+  let enabledCount = 0;
+  for (const id of root.projectOrder) {
+    const project = root.projects[id];
+    const path = `/projects/${id}`;
+    if (!keys(project, ['name', 'enabled', 'props', 'workspace'])) return invalid('PROJECT_SHAPE', path);
+    const name = project.name;
+    if (typeof name !== 'string' || name.trim() !== name || [...name].length < 1 || [...name].length > 32) {
+      return invalid('PROJECT_NAME', `${path}/name`);
+    }
+    const nameKey = name.normalize('NFKC').toLowerCase();
+    if (names.has(nameKey)) return invalid('PROJECT_NAME_DUPLICATE', `${path}/name`);
+    names.add(nameKey);
+    if (typeof project.enabled !== 'boolean') return invalid('PROJECT_ENABLED', `${path}/enabled`);
+    if (project.enabled) enabledCount++;
+    if (!keys(project.props, ['connectionRef', 'dataEnabled', 'automationEnabled'])) return invalid('PROJECT_PROPS', `${path}/props`);
+    if (typeof project.props.connectionRef !== 'string' || project.props.connectionRef.trim() !== project.props.connectionRef
+      || !/^[a-zA-Z0-9_-]{1,64}$/.test(project.props.connectionRef)) {
+      return invalid('CONNECTION_REF', `${path}/props/connectionRef`);
+    }
+    for (const field of ['dataEnabled', 'automationEnabled']) {
+      if (typeof project.props[field] !== 'boolean') return invalid('FLAG_TYPE', `${path}/props/${field}`);
+    }
+    if (!object(project.workspace) || project.workspace.schemaVersion !== 6) return invalid('WORKSPACE_VERSION', `${path}/workspace`);
+  }
+  if (!enabledCount) return invalid('NO_ENABLED_PROJECT', '/projects');
+  if (!Object.hasOwn(root.projects, root.activeProjectId) || !root.projects[root.activeProjectId].enabled) {
+    return invalid('ACTIVE_PROJECT', '/activeProjectId');
+  }
+  for (const id of root.projectOrder) {
+    try {
+      if (validateWorkspace(JSON.parse(JSON.stringify(root.projects[id].workspace)), id) === true) continue;
+    } catch { /* Validator errors never expose document contents. */ }
+    return invalid('WORKSPACE_INVALID', `/projects/${id}/workspace`);
+  }
+  return { ok: true, value: root };
+}

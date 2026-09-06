@@ -124,7 +124,7 @@ JS_TESTS = (
     "desk-bridge-v6.mjs", "deskspec-v6.mjs", "frame-v6.mjs",
     "indicator-sync-v6.mjs", "multisymbol-candles.mjs", "state-projection-v6.mjs",
     "ui-slots-v6.mjs", "workspace-tools-v6.mjs",
-    "project-envelope-a.mjs",
+    "project-envelope-a.mjs", "project-envelope-b.mjs",
 )
 
 
@@ -167,13 +167,15 @@ def review_gate(log, scope="foundation-r7"):
         assert isinstance(report["scenarios"], list) and report["scenarios"]
         assert isinstance(report["mismatches"], list)
         source_pairs = [("rules.md", "rulesSha256")]
-        if scope == "project-envelope-a":
-            source = json.loads((R / "tests/reference/project-envelope-a.review-source.json").read_text(encoding="utf-8"))["readme"]
+        scoped_ends = {"project-envelope-a": "D14.foundation-r7.review",
+                       "project-envelope-b": "D7.project-storage.followup"}
+        if scope in scoped_ends:
+            source = json.loads((R / f"tests/reference/{scope}.review-source.json").read_text(encoding="utf-8"))["readme"]
             assert hashlib.sha256(source.encode("utf-8")).hexdigest() == report["readmeSha256"]
             def section(text):
                 text = text.replace("\r\n", "\n")
-                start = text.index("## D1.project-envelope-a —")
-                end = text.index("\n## D14.foundation-r7.review", start)
+                start = text.index(f"## D1.{scope} —")
+                end = text.index("\n## " + scoped_ends[scope], start)
                 return text[start:end]
             if section(source) != section((R / "README.md").read_text(encoding="utf-8")):
                 add("t12", "STALE_REVIEW", "unchanged reviewed scope", "scope changed", where)
@@ -190,12 +192,13 @@ def review_gate(log, scope="foundation-r7"):
             ids = ",".join(str(row["id"]) for row in blockers)
             add("t12", "DESIGN_MISMATCH", "zero blocking independent findings", f"{len(blockers)} blocking: {ids}", where)
             return
-        if scope == "project-envelope-a":
-            expected = json.loads((R / "tests/fixtures/project-envelope-a.contract.json").read_text(encoding="utf-8"))
+        if scope in scoped_ends:
+            expected = json.loads((R / f"tests/fixtures/{scope}.contract.json").read_text(encoding="utf-8"))
             signatures = [x.removesuffix(" (sync)") for x in report["signatures"]]
             assert signatures == expected["publicSignatures"]
             scenarios = {x["id"]: x["expected"] for x in report["scenarios"]}
-            assert len(scenarios) == len(report["scenarios"]) == len(expected["reviewAssertions"]) == 12
+            count = 12 if scope == "project-envelope-a" else 14
+            assert len(scenarios) == len(report["scenarios"]) == len(expected["reviewAssertions"]) == count
             for ident, values in expected["reviewAssertions"].items():
                 assert all(scenarios[ident][key] == value for key, value in values.items())
             return
@@ -222,7 +225,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for gate in ("static", "semantic", "recorder", "t12"):
         parser.add_argument("--" + gate, action="store_true")
-    parser.add_argument("--t12-scope", choices=("foundation-r7", "project-envelope-a"), default="foundation-r7")
+    parser.add_argument("--t12-scope", choices=("foundation-r7", "project-envelope-a", "project-envelope-b"), default="foundation-r7")
     args = parser.parse_args(argv)
     if args.t12_scope != "foundation-r7" and not args.t12:
         parser.error("--t12-scope requires --t12")

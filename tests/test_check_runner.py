@@ -104,12 +104,12 @@ class CheckRunnerTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("INCOMPLETE_CONTRACT", output)
 
-    def copy_scoped_evidence(self):
+    def copy_scoped_evidence(self, scope="project-envelope-a"):
         source = pathlib.Path(__file__).resolve().parent.parent
         names = ("README.md", "rules.md",
-                 "tests/reference/project-envelope-a.t12-review.json",
-                 "tests/reference/project-envelope-a.review-source.json",
-                 "tests/fixtures/project-envelope-a.contract.json")
+                 f"tests/reference/{scope}.t12-review.json",
+                 f"tests/reference/{scope}.review-source.json",
+                 f"tests/fixtures/{scope}.contract.json")
         for name in names:
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +151,27 @@ class CheckRunnerTests(unittest.TestCase):
                     ok = check.run_child("semantic", "test", ["node"], io.StringIO())
                 self.assertFalse(ok)
                 self.assertEqual(check.fail[0][0], "semantic")
+
+    def test_envelope_b_review_scope_and_expectations_are_bound(self):
+        self.copy_scoped_evidence("project-envelope-b")
+        args = ["--t12", "--t12-scope", "project-envelope-b"]
+        self.assertEqual(self.invoke(args)[0], 0)
+        path = self.root / "README.md"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text + "\nUnrelated storage followup\n", encoding="utf-8")
+        self.assertEqual(self.invoke(args)[0], 0)
+        path.write_text(text.replace("### D2.project-envelope-b.boundary", "### D2.project-envelope-b.boundary changed"), encoding="utf-8")
+        code, output = self.invoke(args)
+        self.assertEqual(code, 1)
+        self.assertIn("STALE_REVIEW", output)
+        path.write_text(text, encoding="utf-8")
+        contract_path = self.root / "tests/fixtures/project-envelope-b.contract.json"
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        contract["reviewAssertions"]["PEB3"]["code"] = "ROOT_VERSION"
+        contract_path.write_text(json.dumps(contract), encoding="utf-8")
+        code, output = self.invoke(args)
+        self.assertEqual(code, 1)
+        self.assertIn("INVALID_REVIEW", output)
 
     def test_old_recorder_file_cannot_turn_failed_run_into_pass(self):
         target = self.root / "artifacts/desk-recorder.v6.json"

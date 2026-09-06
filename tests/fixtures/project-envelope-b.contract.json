@@ -1,0 +1,487 @@
+{
+  "schemaVersion": 1,
+  "designId": "D11.project-envelope-b.vectors",
+  "publicSignatures": [
+    "validateProjectEnvelopeJson(text, validateWorkspace) -> ValidationResult"
+  ],
+  "cases": [
+    {
+      "id": "PEB1",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":2,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": true,
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 2,
+          "activeProjectId": "p1",
+          "projectOrder": [
+            "p1"
+          ],
+          "projects": {
+            "p1": {
+              "name": "기본 프로젝트",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 1,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1"
+      ]
+    },
+    {
+      "id": "PEB2",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":2,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}}}",
+      "callback": "mutate",
+      "expected": {
+        "ok": true,
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 2,
+          "activeProjectId": "p1",
+          "projectOrder": [
+            "p1"
+          ],
+          "projects": {
+            "p1": {
+              "name": "기본 프로젝트",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 1,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1"
+      ]
+    },
+    {
+      "id": "PEB3",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":2,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}},\"extra\":1}",
+      "callback": "accept",
+      "expected": {
+        "ok": false,
+        "code": "ROOT_KEYS",
+        "path": ""
+      },
+      "callbackCalls": 0,
+      "lifecycle": [],
+      "callbackOrder": []
+    },
+    {
+      "id": "PEB4",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":2,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\",\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": false,
+        "code": "PROJECT_DUPLICATE",
+        "path": "/projectOrder/1"
+      },
+      "callbackCalls": 0,
+      "lifecycle": [],
+      "callbackOrder": []
+    },
+    {
+      "id": "PEB5",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":3,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\",\"p2\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}},\"p2\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": false,
+        "code": "PROJECT_NAME_DUPLICATE",
+        "path": "/projects/p2/name"
+      },
+      "callbackCalls": 0,
+      "lifecycle": [],
+      "callbackOrder": []
+    },
+    {
+      "id": "PEB6",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":2,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":false,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": false,
+        "code": "NO_ENABLED_PROJECT",
+        "path": "/projects"
+      },
+      "callbackCalls": 0,
+      "lifecycle": [],
+      "callbackOrder": []
+    },
+    {
+      "id": "PEB7",
+      "text": "{\"schemaVersion\": 7, \"projectSeq\": 3, \"activeProjectId\": \"p2\", \"projectOrder\": [\"p1\", \"p2\"], \"projects\": {\"p1\": {\"name\": \"기본 프로젝트\", \"enabled\": true, \"props\": {\"connectionRef\": \"default\", \"dataEnabled\": true, \"automationEnabled\": false}, \"workspace\": {\"schemaVersion\": 6, \"marker\": \"keep\", \"opaque\": {\"items\": [{\"kind\": \"future\", \"visible\": false, \"props\": {\"n\": 3}}]}}}, \"p2\": {\"name\": \"두 번째\", \"enabled\": false, \"props\": {\"connectionRef\": \"default\", \"dataEnabled\": true, \"automationEnabled\": false}, \"workspace\": {\"schemaVersion\": 6, \"marker\": \"keep\", \"opaque\": {\"items\": [{\"kind\": \"future\", \"visible\": false, \"props\": {\"n\": 3}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": false,
+        "code": "ACTIVE_PROJECT",
+        "path": "/activeProjectId"
+      },
+      "callbackCalls": 0,
+      "lifecycle": [],
+      "callbackOrder": []
+    },
+    {
+      "id": "PEB8",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":1,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": false,
+        "code": "PROJECT_SEQ",
+        "path": "/projectSeq"
+      },
+      "callbackCalls": 0,
+      "lifecycle": [],
+      "callbackOrder": []
+    },
+    {
+      "id": "PEB9",
+      "text": "{\"schemaVersion\": 7, \"projectSeq\": 3, \"activeProjectId\": \"p1\", \"projectOrder\": [\"p1\", \"p2\"], \"projects\": {\"p1\": {\"name\": \"기본 프로젝트\", \"enabled\": true, \"props\": {\"connectionRef\": \"default\", \"dataEnabled\": true, \"automationEnabled\": false}, \"workspace\": {\"schemaVersion\": 6, \"marker\": \"keep\", \"opaque\": {\"items\": [{\"kind\": \"future\", \"visible\": false, \"props\": {\"n\": 3}}]}}}, \"p2\": {\"name\": \"두 번째\", \"enabled\": true, \"props\": {\"connectionRef\": \"default\", \"dataEnabled\": true, \"automationEnabled\": false}, \"workspace\": {\"schemaVersion\": 6, \"marker\": \"keep\", \"opaque\": {\"items\": [{\"kind\": \"future\", \"visible\": false, \"props\": {\"n\": 3}}]}}}}}",
+      "callback": "reject-p2",
+      "expected": {
+        "ok": false,
+        "code": "WORKSPACE_INVALID",
+        "path": "/projects/p2/workspace"
+      },
+      "callbackCalls": 2,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1",
+        "p2"
+      ]
+    },
+    {
+      "id": "PEB10",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":2,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"../x\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": false,
+        "code": "CONNECTION_REF",
+        "path": "/projects/p1/props/connectionRef"
+      },
+      "callbackCalls": 0,
+      "lifecycle": [],
+      "callbackOrder": []
+    },
+    {
+      "id": "PEB11",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":2,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}},{\"kind\":\"unknown-future\",\"props\":{\"preserved\":[false,null,3]}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": true,
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 2,
+          "activeProjectId": "p1",
+          "projectOrder": [
+            "p1"
+          ],
+          "projects": {
+            "p1": {
+              "name": "기본 프로젝트",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    },
+                    {
+                      "kind": "unknown-future",
+                      "props": {
+                        "preserved": [
+                          false,
+                          null,
+                          3
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 1,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1"
+      ]
+    },
+    {
+      "id": "PEB12",
+      "text": "{\"schemaVersion\": 7, \"projectSeq\": 3, \"activeProjectId\": \"p1\", \"projectOrder\": [\"p2\", \"p1\"], \"projects\": {\"p1\": {\"name\": \"기본 프로젝트\", \"enabled\": true, \"props\": {\"connectionRef\": \"default\", \"dataEnabled\": true, \"automationEnabled\": false}, \"workspace\": {\"schemaVersion\": 6, \"marker\": \"keep\", \"opaque\": {\"items\": [{\"kind\": \"future\", \"visible\": false, \"props\": {\"n\": 3}}]}}}, \"p2\": {\"name\": \"두 번째\", \"enabled\": true, \"props\": {\"connectionRef\": \"default\", \"dataEnabled\": true, \"automationEnabled\": false}, \"workspace\": {\"schemaVersion\": 6, \"marker\": \"keep\", \"opaque\": {\"items\": [{\"kind\": \"future\", \"visible\": false, \"props\": {\"n\": 3}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": true,
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 3,
+          "activeProjectId": "p1",
+          "projectOrder": [
+            "p2",
+            "p1"
+          ],
+          "projects": {
+            "p1": {
+              "name": "기본 프로젝트",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "p2": {
+              "name": "두 번째",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 2,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p2",
+        "p1"
+      ]
+    },
+    {
+      "id": "PEB13",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":2,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":\"true\",\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}}}",
+      "callback": "accept",
+      "expected": {
+        "ok": false,
+        "code": "FLAG_TYPE",
+        "path": "/projects/p1/props/dataEnabled"
+      },
+      "callbackCalls": 0,
+      "lifecycle": [],
+      "callbackOrder": []
+    },
+    {
+      "id": "PEB14",
+      "text": "{\"schemaVersion\":7,\"projectSeq\":2,\"activeProjectId\":\"p1\",\"projectOrder\":[\"p1\"],\"projects\":{\"p1\":{\"name\":\"기본 프로젝트\",\"enabled\":true,\"props\":{\"connectionRef\":\"default\",\"dataEnabled\":true,\"automationEnabled\":false},\"workspace\":{\"schemaVersion\":6,\"marker\":\"keep\",\"opaque\":{\"items\":[{\"kind\":\"future\",\"visible\":false,\"props\":{\"n\":3}}]}}}}}",
+      "callback": "async",
+      "expected": {
+        "ok": false,
+        "code": "WORKSPACE_INVALID",
+        "path": "/projects/p1/workspace"
+      },
+      "callbackCalls": 1,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1"
+      ]
+    }
+  ],
+  "reviewAssertions": {
+    "PEB1": {
+      "ok": true,
+      "callbackCalls": 1,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1"
+      ]
+    },
+    "PEB2": {
+      "ok": true,
+      "callbackCalls": 1,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1"
+      ],
+      "marker": "keep"
+    },
+    "PEB3": {
+      "ok": false,
+      "code": "ROOT_KEYS",
+      "path": "",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEB4": {
+      "ok": false,
+      "code": "PROJECT_DUPLICATE",
+      "path": "/projectOrder/1",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEB5": {
+      "ok": false,
+      "code": "PROJECT_NAME_DUPLICATE",
+      "path": "/projects/p2/name",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEB6": {
+      "ok": false,
+      "code": "NO_ENABLED_PROJECT",
+      "path": "/projects",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEB7": {
+      "ok": false,
+      "code": "ACTIVE_PROJECT",
+      "path": "/activeProjectId",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEB8": {
+      "ok": false,
+      "code": "PROJECT_SEQ",
+      "path": "/projectSeq",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEB9": {
+      "ok": false,
+      "code": "WORKSPACE_INVALID",
+      "path": "/projects/p2/workspace",
+      "callbackCalls": 2,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1",
+        "p2"
+      ]
+    },
+    "PEB10": {
+      "ok": false,
+      "code": "CONNECTION_REF",
+      "path": "/projects/p1/props/connectionRef",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEB11": {
+      "ok": true,
+      "callbackCalls": 1,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1"
+      ],
+      "preserveUnknownWorkspace": true
+    },
+    "PEB12": {
+      "ok": true,
+      "callbackCalls": 2,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p2",
+        "p1"
+      ],
+      "projectOrder": [
+        "p2",
+        "p1"
+      ]
+    },
+    "PEB13": {
+      "ok": false,
+      "code": "FLAG_TYPE",
+      "path": "/projects/p1/props/dataEnabled",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEB14": {
+      "ok": false,
+      "code": "WORKSPACE_INVALID",
+      "path": "/projects/p1/workspace",
+      "callbackCalls": 1,
+      "lifecycle": [],
+      "callbackOrder": [
+        "p1"
+      ],
+      "synchronous": true
+    }
+  }
+}

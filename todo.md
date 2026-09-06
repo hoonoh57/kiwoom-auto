@@ -41,8 +41,11 @@
 - [x] R2a(project-envelope-a): web/js/project-state.js의 wrapWorkspaceJson/projectWorkspacePath/selectProject 구현. validator clone 격리, unknown/숨김 설정 보존, safe project ID, 동일 선택 identity, N=1000 선택 시 무관 프로젝트 순회 0 검증.
 - [x] R1: 독립 보고서 읽기·문서 SHA·blocking findings·시그니처/기대값 비교 연결. --t12-scope project-envelope-a는 원문 증거와 현재 명세의 범위 일치까지 검증하며 scoped PASS만 출력.
 - [x] 최신 검사: JS 12개, Python 25개(기존 13+검증기 12), recorder 및 scoped T12 PASS. 전체 foundation-r7 T12는 14개 차단 결함으로 FAIL이며 새 문서 개정 이후 전체 재검토도 필요. 제품 전체 ARCH PASS 아님.
-- [ ] 추가 독립 검토는 에이전트 도구 사용 한도로 중단됨. /root/t12_review의 scoped PASS 보고서는 이미 작성·검증되어 유효하다. 새로운 범위는 독립 검토 재개 가능 시 검토한 뒤 코드 착수한다.
-- [ ] R2b 다음: canonical v7 전체 validator 및 프로젝트 CRUD/저장 연결 계약을 코드 전에 확정. R2a는 순수 도우미이며 현재 화면의 자동 v7 마이그레이션/프로젝트 전환 UI/파일 저장을 연결하지 않았다.
+- [x] 추가 독립 검토 재개: review_envelope_b가 rules/README만 읽고 B 검증기 재구성. D4/D10 오류 우선순위 모순 1건을 코드 착수 전에 수정하고 재검토 PASS. 시그니처 1개/PEB1~14 기대값 비교·원문 SHA 확인 완료.
+- [x] project-envelope-b 설계 상태 APPROVED, OPEN 0: 기존 사용자 전체 설계 구현 및 계속 지시의 순차 구현 범위. 독립 T12 통과 후 순수 JSON 검증기만 착수한다. 프로젝트 저장/UI 연결은 후속 범위.
+- [x] R2b(project-envelope-b): validateProjectEnvelopeJson 구현. v7 envelope 구조/ID/이름 중복/활성 프로젝트 검증, 전체 구조 확인 후 v6 callback 실행, unknown/숨김 값 보존·callback clone 격리. PEB1~14, 오류 우선순위 및 N=1/10/1000 검증 PASS.
+- [x] 최신 검증: 프로젝트 .venv Python으로 static/semantic/recorder 및 B scoped T12 PASS. JS 13개·Python 26개 통과. 시스템 Python 첫 실행은 httpx/dotenv 미설치로 실패했고 프로젝트 환경에서 재실행했다. A scoped 증거도 유지한다.
+- [ ] R2c 다음: README.md D7.project-storage.followup의 저장 실패/프로젝트 ID 포착/큐 재기준화/원문 백업 계약과 실제 v6 strict validator를 확정하고 독립 검토한다. A/B는 순수 함수이며 현재 화면의 자동 v7 마이그레이션/프로젝트 전환 UI/파일 저장은 아직 연결하지 않았다.
 - [x] D5.wire-profile/normalized-events 추가: control pending 1개, ack 상관관계/timeout/heartbeat, 시세·호가·계좌·조건식 정규화 필드와 단위 명시. descriptor.sideEffect 필드를 명시해 부작용 요청의 공유/재시도 금지 계약을 연결.
 - [x] tests/fixtures/foundation-r7.contract.json: F01의 N=1/10/1000을 포함한 14개 설계 시나리오/기대 trace 작성, 형태·seq·ID 유일성 확인. 실행 harness/제품 동작 증거가 아니며 상세 독립 검토 필요.
 - [x] R1 실행 분리 구현: 기본 static, --semantic 기존 회귀 실행, --recorder 실제 callback 기록, --t12 독립 증거 미완료를 MISSING_REVIEW로 실패 처리. 미실행 gate를 PASS로 출력하지 않음.
@@ -145,16 +148,16 @@ REMEDIATION_REQUIRED
 
 ```text
 branch       : main
-제품 기준선  : 2cd7678 (지표 동기화까지 push 완료; 재개 시 Git 대조)
-문서 tranche : 전체 독립 T12 FAIL + 최소 project-envelope-a 독립 PASS
-worktree     : R2a 순수 STATE 구현 및 R1 scoped T12 비교 완료; Git 상태 대조
+제품 기준선  : fc4de20 (R2a push 완료); R2b는 현재 tranche commit을 Git log로 대조
+문서 tranche : 전체 독립 T12 FAIL + project-envelope-a/b 독립 PASS
+worktree     : R2b 순수 JSON 검증 및 scoped 비교 완료; Git 상태 대조
 현재 STATE   : state/workspace.json schemaVersion 6
 목표 STATE   : schemaVersion 7 envelope + 프로젝트 내부 v6
-설계 상태    : 기존 v6 APPROVED; project-envelope-a APPROVED/구현; foundation-r7 DRAFT
-OPEN         : 전체 T12 차단 14개 / project-envelope-a 0
-게이트       : project-envelope-a T12 PASS·회귀 PASS; 전체 새 범위 독립 재검토 필요
-다음 설계 ID : README.md D3/D4.foundation-r7, T12-R7-004 및 tests/reference/foundation-r7.t12-review.json
-다음 행동    : R2b formal validator/CRUD/저장 계약 작성 후 독립 검토. 에이전트 사용 한도 회복 전 신규 범위 T12 완료를 주장하지 않음
+설계 상태    : 기존 v6 APPROVED; project-envelope-a/b APPROVED/구현; foundation-r7 DRAFT
+OPEN         : 전체 T12 차단 14개 / project-envelope-a/b 0
+게이트       : B T12·static·semantic·recorder PASS; 전체 새 범위 독립 재검토 필요
+다음 설계 ID : README.md D7.project-storage.followup, D3/D4.foundation-r7, T12-R7-004
+다음 행동    : R2c v6 strict validator/프로젝트 CRUD/저장 ack·실패 계약 확정 후 독립 검토. review_envelope_b로 검토 재개됨
 검증 잔여    : 실시간 구현/부하/복구, 프로젝트 격리, 브라우저 acceptance, 전체 ARCH PASS
 ```
 

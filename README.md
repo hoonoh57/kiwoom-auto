@@ -1088,9 +1088,9 @@ semantic은 tests의 등록된 JS 회귀 파일 전체와 test_kiwoom_rest.py/te
 
 recorder는 desk-bridge-v6.mjs의 실제 recorder callback 이벤트를 artifacts/desk-recorder.v6.json에 저장한다. {schemaVersion:1,harnesses:[{id,events}]} 형식이며 각 harness의 seq를 유지한다. 기존 fixture 비교 assertion을 그대로 실행하고 성공한 실행에 한해서만 아티팩트를 쓴다. 생성되지 않은 과거 아티팩트로 PASS를 판정하지 않는다.
 
-t12는 tests/reference/<scope>.t12-review.json의 독립 재구성을 검사한다. 기본 scope는 foundation-r7이고 --t12-scope project-envelope-a로 통과된 최소 범위를 별도 검사한다. scope 옵션은 --t12와 함께만 사용한다. 증거 누락/형식 오류/문서 변경/차단 결함/시그니처·기대값 불일치는 FAIL이다. PASS 라벨만으로 통과시키지 않는다. 전체 r7은 차단 결함이 남아 있다.
+t12는 tests/reference/<scope>.t12-review.json의 독립 재구성을 검사한다. 기본 scope는 foundation-r7이고 --t12-scope project-envelope-a 또는 project-envelope-b로 통과된 최소 범위를 별도 검사한다. scope 옵션은 --t12와 함께만 사용한다. 증거 누락/형식 오류/문서 변경/차단 결함/시그니처·기대값 불일치는 FAIL이다. PASS 라벨만으로 통과시키지 않는다. 전체 r7은 차단 결함이 남아 있다.
 
-project-envelope-a의 검토 당시 README 원문은 tests/reference/project-envelope-a.review-source.json에 보존한다. 그 원문의 SHA256이 독립 보고서와 일치하고, 현재 README의 D1.project-envelope-a부터 다음 D14.foundation-r7.review 직전까지가 원문과 LF 정규화 기준 동일해야 한다. rules.md 원문 SHA256도 일치해야 한다. 시그니처 3개와 PEA1~PEA12의 기대값/빈 lifecycle trace를 contract fixture와 비교한다. 해당 scope PASS를 전체 r7 PASS로 출력하지 않는다. 원문 snapshot은 검토 증거이며 상시 규칙 문서가 아니다.
+project-envelope-a의 검토 당시 README 원문은 tests/reference/project-envelope-a.review-source.json에 보존한다. 그 원문의 SHA256이 독립 보고서와 일치하고, 현재 README의 D1.project-envelope-a부터 다음 D14.foundation-r7.review 직전까지가 원문과 LF 정규화 기준 동일해야 한다. rules.md 원문 SHA256도 일치해야 한다. 시그니처 3개와 PEA1~PEA12의 기대값/빈 lifecycle trace를 contract fixture와 비교한다. project-envelope-b도 같은 방식으로 별도 원문 snapshot을 사용하며 D1.project-envelope-b부터 D7.project-storage.followup 직전까지, 시그니처 1개와 PEB1~PEB14를 비교한다. 해당 scope PASS를 전체 r7 PASS로 출력하지 않는다. 원문 snapshot은 검토 증거이며 상시 규칙 문서가 아니다.
 
 ## D1.project-envelope-a — 최초 구현용 독립 범위
 
@@ -1176,3 +1176,108 @@ wrap은 JSON byte 수 B에 O(B) 시간/공간, callback 비용은 외부 검증 
 3. canonical v7 fixture 작성 및 내부 v6 무손실 검증 완료. tests/fixtures/foundation-r7.contract.json에 14개 기대 시나리오 작성. fixture는 설계 자료이며 F01~F12의 실행 harness/전체 부하/장중 실증을 대체하지 않는다. 독립 T12와 비교기 미완료, --t12는 MISSING_REVIEW로 실패한다.
 
 상기 항목이 남아 있으므로 이 실행 설계안은 완성/승인된 제품 명세가 아니다. 기존 realtime-foundation OPEN 1~4는 이 상세 항목과 연계 관리한다. 목표·순서·공식 wire 카탈로그·성능 측정 조건은 이번 설계 tranche 산출물이다.
+
+## D1.project-envelope-b — v7 문서 검증 독립 범위
+
+범위는 순수 validateProjectEnvelopeJson 1개다. 프로젝트 CRUD/UI/저장 큐/마이그레이션 파일 교체는 포함하지 않는다. 기존 reconcileV6는 값 보정 함수이므로 이 범위의 strict validator로 바로 사용하지 않는다. 기존 v6 의미 검증 책임은 주입 callback에 있고, validation이 보정한 문서를 성공값으로 반환하는 것은 금지한다. 독립 T12 전에는 제품 코드 착수 금지.
+
+### D2.project-envelope-b.boundary
+
+STATE web/js/project-state.js에 export 1개를 추가한다. 기존 A 함수의 공개 동작은 유지한다. 다른 모듈 import/ENGINE/BRIDGE/ADDON 변경 0. validator가 소유하는 I/O는 0이며 주입 callback의 외부 부작용까지 이 모듈이 보증하지 않는다. callback을 순수 검증 함수로 연결하는 책임은 composition caller에 있다.
+
+### D3.project-envelope-b.types
+
+호출은 validateProjectEnvelopeJson(text, validateWorkspace)→ValidationResult이며 동기다. validateWorkspace(workspaceClone,projectId)는 true만 합격, throw/false/Promise/다른 값은 실패다. 반환은 성공 {ok:true,value:parsedRoot}, 실패 {ok:false,code,path}. code/path는 문자열이고 path는 JSON Pointer, root는 빈 문자열이다. 공개 함수는 예상된 입력 오류를 throw하지 않는다. 반환 객체에 문서 원문/secret/stack을 넣지 않는다.
+
+### D4.project-envelope-b.schema
+
+root의 필수 키 집합은 schemaVersion/projectSeq/activeProjectId/projectOrder/projects이고 다른 키는 허용하지 않는다. schemaVersion=7. projectSeq는 2~Number.MAX_SAFE_INTEGER의 정수. activeProjectId는 A의 ProjectId. projectOrder는 1개 이상의 ProjectId 배열이며 중복 없음. projects는 non-null non-array object이고 own key 집합은 projectOrder와 정확히 같아야 한다. projectSeq는 모든 프로젝트 ID 숫자 부분보다 커야 한다. 순서 배열은 재정렬하지 않는다.
+
+project의 키는 name/enabled/props/workspace로 정확히 고정한다. name은 string, trim 결과와 원문이 동일, Unicode code point 1~32개, NFKC→toLowerCase 비교키가 프로젝트 간 유일하다. case 변환은 locale 비의존이다. enabled는 boolean. props 키는 connectionRef/dataEnabled/automationEnabled로 고정한다. connectionRef는 [a-zA-Z0-9_-]{1,64}, 두 플래그는 boolean. workspace는 non-null non-array object, schemaVersion=6이며 내부 키/값은 검증 callback에 위임하고 모두 보존한다. enabled 프로젝트가 1개 이상이어야 하며 activeProjectId는 projects own key이고 enabled=true여야 한다.
+
+unknown root/project/props 키는 삭제하지 않고 실패한다. unknown workspace 키/ADDON kind/props는 callback이 true이면 그대로 보존한다. v6 문서를 자동 wrap하지 않는다. root 키 집합이 유효하고 schemaVersion만 6이면 ROOT_VERSION이며, 일반 v6 workspace처럼 root 키 집합도 다르면 D10 우선순위에 따라 ROOT_KEYS다. 모든 기본값은 명시적이며 누락 값을 채우지 않는다. text의 중복 object key는 JSON.parse 표준 결과(마지막 값)를 사용한다. 중복 원문 key 탐지 parser는 이 범위가 아니다.
+
+### D5.project-envelope-b.catalog
+
+새 ADDON 0. 등록된 기능의 의미를 validator에 hardcode하지 않는다. v6 callback은 화면 catalog를 사용할 수 있지만 이 함수에는 catalog가 전달되지 않는다.
+
+### D6.project-envelope-b.api
+
+export function validateProjectEnvelopeJson(text, validateWorkspace). text가 string이고 callback이 function인지 먼저 검사하며 아니면 INVALID_ARGUMENT/path="". JSON.parse reviver로 모든 number의 Number.isFinite를 확인한다. 파싱/비유한 값 실패는 INVALID_JSON/path="". 파싱된 문서는 callback에 직접 전달하지 않는다. 반환 value는 원래 파싱 객체이고 매 호출 새 객체다. callback에는 해당 workspace의 JSON deep clone을 projectOrder 순서로 한 번씩 전달한다. callback의 수정은 반환 value에 반영하지 않는다.
+
+### D7.project-envelope-b.algorithm
+
+실패 첫 건만 반환한다. 구조 검사를 모두 통과하기 전 callback은 0회다. 검사 순서는 D10이다. 구조 검사 완료 뒤 projectOrder 순서로 callback을 실행하며 첫 실패에서 멈춘다. 모든 callback true인 경우만 성공. 정상 완료/모든 오류에서 함수가 수행하는 lifecycle=[] 및 파일 write/request=0이다.
+
+### D8.project-envelope-b.equality
+
+문서 값 비교는 A의 JSON 동등성 규칙을 유지한다. 추가 hash 없음. object 키 집합 검사에는 own keys만 사용한다. 오류 path의 key 부분은 ~→~0, /→~1로 escape한다. validation은 name/ID/키/배열/수치 값을 정규화해 저장하지 않는다.
+
+### D9.project-envelope-b.effective
+
+전역 enabled 수와 active 프로젝트 enabled를 검사할 뿐 data/automation 플래그에 따른 실행을 하지 않는다. 표시/매매 상태를 변경하지 않는다.
+
+### D10.project-envelope-b.error-order
+
+| 순서 | 조건 | code / path |
+| --- | --- | --- |
+| 1 | 인자 / 파싱 | D6의 INVALID_ARGUMENT 또는 INVALID_JSON / "" |
+| 2 | root가 object 아님 | ROOT_TYPE / "" |
+| 3 | root 키 집합 불일치 | ROOT_KEYS / "" |
+| 4 | schemaVersion!==7 | ROOT_VERSION / /schemaVersion |
+| 5 | projectSeq 타입/범위 | PROJECT_SEQ / /projectSeq |
+| 6 | activeProjectId 형식 | PROJECT_ID / /activeProjectId |
+| 7 | projectOrder가 비어 있거나 배열 아님 | PROJECT_ORDER / /projectOrder |
+| 8 | projectOrder 각 값의 ID 형식 / 중복 (낮은 index부터) | PROJECT_ID 또는 PROJECT_DUPLICATE / /projectOrder/<index> |
+| 9 | projects object 타입/own key 집합 불일치 | PROJECT_MEMBERS / /projects |
+| 10 | projectSeq<=최대 ID 숫자 | PROJECT_SEQ / /projectSeq |
+| 11 | projectOrder 순서의 각 project object/키 집합 | PROJECT_SHAPE / /projects/<id> |
+| 12 | 그 project name 타입/trim/길이 / 앞서 검사한 name과 중복 | PROJECT_NAME 또는 PROJECT_NAME_DUPLICATE / /projects/<id>/name |
+| 13 | 그 project enabled 타입 | PROJECT_ENABLED / /projects/<id>/enabled |
+| 14 | 그 project props object/키 집합 | PROJECT_PROPS / /projects/<id>/props |
+| 15 | 그 project connectionRef / dataEnabled / automationEnabled 순서 | CONNECTION_REF 또는 FLAG_TYPE / 해당 필드 path |
+| 16 | 그 project workspace object/schemaVersion | WORKSPACE_VERSION / /projects/<id>/workspace |
+| 17 | 모든 project 구조 검사가 끝난 뒤 enabled 수 0 | NO_ENABLED_PROJECT / /projects |
+| 18 | active ID가 존재하지 않음 / disabled | ACTIVE_PROJECT / /activeProjectId |
+| 19 | projectOrder 순서의 callback 첫 실패 | WORKSPACE_INVALID / /projects/<id>/workspace |
+
+11~16은 각 project에 대해 전부 검사한 다음 다음 project로 진행한다. 누락 key와 다른 값 오류가 동시에 있으면 키 집합 오류가 먼저다. own key 순서는 실패 우선순위에 영향을 주지 않는다. callback이 Promise를 반환해도 await하지 않는다.
+
+### D11.project-envelope-b.vectors
+
+기본 입력 E는 A의 E(W), accept=true/reject=false/mutate는 clone marker 변경 후 true다. E2는 A PEA8의 두 enabled 프로젝트 문서다. 아래는 문서 clone에 변형을 적용하고 stringify해서 전달한다. callbackCalls는 전체 호출 횟수다. 모든 lifecycle=[]다.
+
+| id | 입력 변형 | 기대 |
+| --- | --- | --- |
+| PEB1 | E/accept | ok:true, value=E, callbackCalls=1 |
+| PEB2 | E/mutate | ok:true, value=E, 원문 marker 유지 |
+| PEB3 | E에 root.extra=1 | ROOT_KEYS, "", callbackCalls=0 |
+| PEB4 | E.projectOrder=["p1","p1"] | PROJECT_DUPLICATE, /projectOrder/1 |
+| PEB5 | E2.projects.p2.name=E2.projects.p1.name | PROJECT_NAME_DUPLICATE, /projects/p2/name |
+| PEB6 | E.projects.p1.enabled=false | NO_ENABLED_PROJECT, /projects |
+| PEB7 | E2.activeProjectId="p2", p2.enabled=false | ACTIVE_PROJECT, /activeProjectId |
+| PEB8 | E.projectSeq=1 | PROJECT_SEQ, /projectSeq |
+| PEB9 | E2/ callback p1=true,p2=false | WORKSPACE_INVALID, /projects/p2/workspace, callbackCalls=2 |
+| PEB10 | E.props의 connectionRef를 변경하는 대신 E.projects.p1.props.connectionRef="../x" | CONNECTION_REF, /projects/p1/props/connectionRef |
+| PEB11 | E.projects.p1.workspace.opaque.items에 unknown kind/props 추가, accept | ok:true, 추가 값 그대로 보존 |
+| PEB12 | E2.projectOrder=["p2","p1"], accept | ok:true, 순서 그대로, callback 순서 p2,p1 |
+| PEB13 | E.projects.p1.props.dataEnabled="true" | FLAG_TYPE, /projects/p1/props/dataEnabled |
+| PEB14 | E/ callback Promise.resolve(true) | WORKSPACE_INVALID, /projects/p1/workspace, callbackCalls=1 |
+
+### D12.project-envelope-b.cost
+
+파싱/clone은 전체 JSON byte B에 O(B), 프로젝트 집합/비교키 검사는 P개에 O(P), 추가 공간 O(B+P). callback 비용은 외부 비용이다. 부팅/import/명시 저장 검증에서만 호출하고 시장 tick이나 selectProject 안에서 호출하지 않는다. 전체 정렬은 필요하지 않다.
+
+### D13.project-envelope-b.files
+
+제품은 web/js/project-state.js, 테스트 tests/project-envelope-b.mjs, 기대값 tests/fixtures/project-envelope-b.contract.json, 독립 증거 tests/reference/project-envelope-b.t12-review.json. 기존 A의 검토된 범위 텍스트와 동작을 수정하지 않는다.
+
+### D14.project-envelope-b.open
+
+함수 1개 범위의 구현 선택 사항 없음. 독립 재구성 검토가 남아 있으며 통과 전 제품 코드 작성 금지. 실제 v6 strict validator 연결과 저장/CRUD는 별도 범위다.
+
+## D7.project-storage.followup — 저장 연결 전 관측 결함과 결정 범위
+
+관측: app.js patch는 먼저 st를 바꾸고 실패를 로그로만 남긴다. 부팅은 schemaVersion>6을 recovery로 보내며 root path로 v6 보정 patch를 저장한다. 따라서 v7 파일만 쓰면 현재 화면이 정상 부팅되지 않는다. 이 결함은 검증기 PASS로 해소됐다고 보지 않는다.
+
+후속 계약에서는 (1) 현재 프로젝트 ID를 enqueue 전에 포착해 뒤늦은 쓰기가 다른 프로젝트로 가지 않을 것, (2) UI 성공 표시를 저장 ack와 구분할 것, (3) 실패 이후 큐의 재기준화/취소 결과를 정의할 것, (4) legacy 원문 백업 후 교체와 UI schema 전환을 함께 검증할 것, (5) 숨김/미등록 ADDON 원문을 유지할 것, (6) /api/node 및 store generic CRUD 계약은 그대로 유지할 것을 고정한다. 구체 공개 API/오류/trace는 아직 DRAFT이며 이 문단만으로 제품 구현하지 않는다.

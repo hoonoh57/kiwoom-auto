@@ -997,7 +997,7 @@ sessionArmed는 false로 부팅하는 비영속 실행 허용값이다. 설정 �
 아래는 D6.primitives 표를 구체화한 설계 계약이다. 제품 구현 완료를 뜻하지 않는다.
 
 - ResourceKey는 canonical JSON 배열을 직렬화한 비어 있지 않은 string(UTF-8 2048 bytes 이하)이다. 빈 key/상한 초과는 INVALID_INPUT, 자원 생성 0이다.
-- Descriptor는 {version:1,mode:"request"|"stream",profileId:string,config:JSON object,delivery:"ordered"|"latest",queueLimit:int,byteLimit:int}. profileId는 등록된 선언적 protocol profile의 불변 ID다. config에는 비밀값 대신 credentialRef를 둔다. 미등록 profile은 UNSUPPORTED_PROFILE. queueLimit 범위 1~10000, byteLimit 범위 1024~16777216, 기본은 각각 10000/16777216. ordered는 모든 이벤트를 순서대로 전달, latest는 같은 key의 미전달 표시값만 대체한다. 원시 체결/주문 이벤트는 ordered로 등록한다.
+- Descriptor는 {version:1,mode:"request"|"stream",sideEffect:boolean,profileId:string,config:JSON object,delivery:"ordered"|"latest",queueLimit:int,byteLimit:int}. sideEffect 기본 false, stream에서는 true를 거부한다. profileId는 등록된 선언적 protocol profile의 불변 ID다. config에는 비밀값 대신 credentialRef를 둔다. 미등록 profile은 UNSUPPORTED_PROFILE. queueLimit 범위 1~10000, byteLimit 범위 1024~16777216, 기본은 각각 10000/16777216. ordered는 모든 이벤트를 순서대로 전달, latest는 같은 key의 미전달 표시값만 대체한다. 원시 체결/주문 이벤트는 ordered로 등록한다.
 - DescriptorHash는 정규화 Descriptor 전체의 기존 canonicalHash다. 동일 key에 다른 hash로 acquire하면 KEY_CONFLICT를 반환하고 기존 자원은 유지한다. 갱신은 기존 lease release 후 다른 key 또는 마지막 lease가 해제된 key의 acquire로 표현한다.
 - Lease는 {id:int,key:string}의 비영속 opaque handle이다. id는 ENGINE 인스턴스 내 1부터 단조 증가하며 재사용하지 않는다. 이미 해제된 lease의 release는 no-op, 다른 인스턴스의 lease는 INVALID_HANDLE이다. 역직렬화된 JSON 객체를 유효 lease로 받지 않는다.
 - Error는 {code:string,retryable:boolean,message:string,key:string|null}이다. 허용 code는 INVALID_INPUT/INVALID_HANDLE/UNSUPPORTED_PROFILE/KEY_CONFLICT/TIMEOUT/CANCELLED/AUTH_REJECTED/REMOTE_ERROR/OVERFLOW/IO_ERROR/PROTOCOL_ERROR/CLOSED. message에는 credential/계좌번호/원시 주문 body를 넣지 않는다. raw cause는 노출하지 않는다.
@@ -1035,10 +1035,65 @@ ACKNOWLEDGED는 providerOrderId와 provider 응답 결과만 기록한다. 체�
 
 동일 commandId 요청은 최초 PREPARED payload와 현재 기록을 반환한다. append 실패는 IO_ERROR, wire 전송 0이다. 잘린 마지막 줄/seq 불연속/같은 ID의 충돌 기록은 읽기 복구 오류로 표시하고 해당 connection의 신규 주문을 막는다. 파일 자동 삭제/회전 중 덮어쓰기는 하지 않으며 날짜별 새 파일에 이어간다. 보존/정리 정책은 실제 거래 사용 전 별도 설계로 지정한다. 원문 키/토큰은 기록하지 않는다.
 
+## D5.foundation-r7.wire-profile — protocol 선언과 응답 상관관계
+
+ProtocolProfile은 {id,version,transport,endpointRef,credentialRef,openTimeoutMs,ackTimeoutMs,idleTimeoutMs,controlLimit,codecId}다. id/codecId는 [a-zA-Z0-9_.-]{1,64}, version=1, transport는 http|websocket. endpointRef는 설정의 등록 별칭이고 외부 입력 URL은 금지한다. 기본 openTimeoutMs=15000, ackTimeoutMs=15000, idleTimeoutMs=90000, controlLimit=256이며 양의 정수만 허용한다. HTTP idleTimeoutMs는 적용하지 않는다. codecId의 구현은 ADDON 등록부에 있고 ENGINE은 codecId의 의미를 해석하지 않는다.
+
+codec의 순수 계약은 encode(operation,args,credential)→JSON, classify(frame)→{type:"heartbeat"|"ack"|"event"|"invalid",correlation:string|null,payload:JSON}, accepts(operation,args,ack)→boolean, decode(channel,row)→{value,quality,missing}다. credential은 송신 시점에만 전달하고 descriptor/hash/event/로그에 저장하지 않는다. codec는 session/queue/live collection을 참조하지 않는다. ENGINE은 heartbeat/ack/event의 공통 실행만 소유한다.
+
+| operation | 송신/상관관계 | 성공 조건 |
+| --- | --- | --- |
+| login | LOGIN + token / LOGIN | return_code가 정수 0 또는 문자열 "0"일 때만 성공. 필드 누락/다른 타입 실패 |
+| subscribe | REG, grp_no="1", refresh="1", data=[{item:[wireCode],type:[channel]}] / REG | 같은 generation의 유일 pending control과 trnm 일치, return_code=0. grp_no/data echo가 있으면 요청과 일치해야 함 |
+| unsubscribe | REMOVE, grp_no="1", data=[{item:[wireCode],type:[channel]}] / REMOVE | subscribe와 같은 검증, refresh 필드 생략 |
+| conditions-list | CNSRLST / CNSRLST | return_code=0, data 배열 |
+| conditions-query | CNSRREQ, seq, search_type="0", stex_tp="K", cont_yn/next_key / CNSRREQ+seq | return_code=0 및 seq 일치. 연속 조회 20페이지/반복키 거부 |
+| conditions-live | CNSRREQ, seq, search_type="1", stex_tp="K" / CNSRREQ+seq | return_code=0 및 seq 일치, 초기 결과 저장 후 REAL 반영 |
+| conditions-stop | CNSRCLR, seq / CNSRCLR+seq | return_code=0 및 seq 일치 |
+
+account 채널 00/04의 wireCode는 빈 문자열이다. quote/trade 호가 채널의 wireCode는 KRX=6자리, NXT=6자리_NX, SOR=6자리_AL. 계좌 모니터링은 connection당 00/04 각 1개를 공유한다. 모의 환경은 KRX만 허용한다. WSS control은 연결 전체에 pending 1개만 허용한다. REAL/PING은 pending을 완료시키지 않는다. heartbeat는 수신 JSON을 그대로 echo하며 control rate 대기와 분리한다.
+
+ack timeout/상관관계 불일치는 PROTOCOL_ERROR/TIMEOUT으로 연결을 닫고 새 generation에서 재시작한다. 늦은 구세대 응답이 신규 요청의 완료가 되면 FAIL이다. pending 없는 ack는 경고 카운트만 증가시키고 무시한다. 서버 ack에 요청 ID가 없는 REG/REMOVE는 같은 연결의 순차 응답 계약을 전제로 한다. 동일 trnm의 중복 응답을 완전히 식별할 수 있다고 주장하지 않는다. wire 이상이 의심되면 재접속/재대조한다.
+
+메시지 수신 공백 90초는 연결 stale로 처리한다. PING echo는 1초 이내 송신 목표이고 이벤트/그리기 큐에 막히지 않는다. 새 구독의 성공 응답 없이는 confirmed로 표시하지 않는다. HTTP와 WSS 유량 설정은 별도이며 WSS control 최소 간격 200ms를 프로젝트 기본 제한으로 적용한다. 이를 공급자 공식 허용량이라고 표시하지 않는다. socket이 없는 상태에서 pending control을 생성하지 않는다. control 상한 초과는 OVERFLOW이며 요청을 몰래 삭제하지 않는다.
+
+## D5.foundation-r7.normalized-events — 필드와 단위
+
+wire 값은 문자열로 받고 정수/십진수 문법을 검증한다. 공백 trim 후 정규식 [+-]?[0-9]+(\.[0-9]+)?만 허용한다. 금액/비율은 canonical decimal string(앞 0/불필요한 소수 0 제거, -0→0)으로 보존한다. 차트 입력으로 변환할 때만 유한 number 범위를 검증한다. 수량은 비음수 safe integer로 정규화한다. 누락/빈 문자열은 null이며 0으로 채우지 않는다. 유효하지 않은 숫자는 INVALID_INPUT, 해당 row의 시장/계좌 값 update 0이다. 가격의 방향 부호는 abs 처리하고 change/rate는 부호를 보존한다.
+
+정규화 event는 {channel,instrument,market,accountAlias,timeText,fields,quality,missing}. channel은 wire type, instrument는 접두/시장 접미를 분리한 코드이며 accountAlias는 서버 검증 후 별칭만 전달한다. timeText는 HHmmss 검증 문자열 또는 null. quality는 complete|partial, missing은 필수 내부 필드 누락 목록을 이름 오름차순으로 저장한다. missing이 있으면 부분 필드를 표시할 수 있으나 매매 판단 eligible=false다. wire의 불필요한 원문 개인정보는 UI에 전달하지 않는다.
+
+| channel | 필수 내부 필드 ← wire | 추가 필드 ← wire |
+| --- | --- | --- |
+| 0B | price←abs(10), tradeQty←abs(15), cumulativeQty←13, timeText←20 | change←11, rate←12, turnoverMillion←14, open/high/low←abs(16/17/18) |
+| 0D | timeText←21, asks[1..10].price/qty←abs(40+i)/(60+i), bids[1..10]←abs(50+i)/(70+i) | totalAskQty←121, totalBidQty←125 |
+| 00 | orderId←9203, instrument←9001, status←913, timeText←908 | orderQty←900, orderPrice←abs(901), remainingQty←902, cumulativeAmount←903, originalOrderId←904, executionId←909, executionPrice←abs(910), executionQty←911, side←907, rejectReason←919, market←2134 |
+| 04 | instrument←9001, holdingQty←930, availableQty←933 | averagePrice←abs(931), acquisitionAmount←932, price←abs(10), creditType←917, loanDate←916 |
+| condition | conditionId←841, instrument←9001, membership←843 | timeText←20, side←907 |
+| 0s | sessionCode←215, timeText←20 | remainingTime←214 |
+
+0B/0D의 market은 승인된 subscription key를 기준으로 하고 wire.item과 일치해야 한다. 00의 2134는 0=SOR,1=KRX,2=NXT이며 누락 시 market=null로 두고 대조한다. 04는 시장별 잔고를 임의 추정하지 않고 계좌/종목/신용구분/대출일 키로 대조한다. 00/04의 9201은 서버 credential에 연결된 실제 계좌와 일치하는지 검사하며 UI에는 accountAlias만 전달한다. 불일치는 PROTOCOL_ERROR와 account DEGRADED다.
+
+종목 prefix A는 국내주식으로 분리하고 J/Q는 현재 범위에서 UNSUPPORTED_INSTRUMENT다. 시장 접미는 _NX/_AL 중 하나만 허용한다. 00의 status는 접수/체결/확인/취소/거부 원문을 보존하며 모르는 값은 partial 처리한다. side는 1=SELL,2=BUY, 나머지는 null/partial이다. 원주문 0000000은 null. 00의 누적 체결금액을 체결 수량으로 해석하지 않는다. 0B turnoverMillion은 백만원 단위를 그대로 명명하며 원 단위로 표시할 때만 1000000을 곱한다. condition membership은 I/D만 허용한다.
+
+주문 수량/잔고 key별 충돌·날짜·부분 필드 처리는 D10.reconciliation을 따른다. 계좌 event를 수량 delta로 무조건 합산하거나, 같은 HHmmss를 중복 체결 key로 사용하는 것은 금지한다. 시간문자열만 제공되는 채널은 broker 거래일이 확인되기 전 epoch를 확정하지 않는다.
+
+## D11.v6.check-runner — 기존 승인 검증의 실행·보고
+
+기존 v6 Tranche 7의 검사 명령을 다음과 같이 분리한다. 이 변경은 검증 도구 범위이고 r7 제품 구현 게이트를 우회하지 않는다. `check.py` 인자 없음은 static만 실행해 `[PASS] static`을 출력한다. --static/--semantic/--recorder/--t12는 조합 가능하고 실행 순서는 이 순서로 고정한다. 모르는 인자는 argparse 오류(exit 2)다. 게이트 실패는 exit 1, 선택한 실행 게이트 전부 성공일 때 exit 0. 실행하지 않은 gate/ARCH PASS를 출력하지 않는다.
+
+static은 기존 C1~C7을 유지한다. B2에 승인된 app/addons의 기능 어휘는 C1 검사에서 제외한다. C3/C4는 소스 검사이므로 static으로 분류한다. 필수 검사 파일이 없으면 FAIL이며 건너뛰지 않는다. 현재 deskspec schema는 내부 v6 fixture와 대조하고, project-state.js가 추가되면 envelope v7 fixture와 대조한다. 대상 파일·JSON 파싱 실패는 FAIL이다.
+
+semantic은 tests의 등록된 JS 회귀 파일 전체와 test_kiwoom_rest.py/test_state_recovery.py/test_check_runner.py를 실행한다. 이는 기존 회귀 범위 PASS이며 미구현 r7/F01~F12 또는 실제 브라우저/전체 ARCH PASS를 뜻하지 않는다. 각 child timeout은 60초이며 실패/미설치/시간초과를 FAIL로 기록한다. stdout/stderr는 artifacts/check.log에 남기고 사용자 출력은 gate별 결과 또는 규정의 4줄 오류만 쓴다. 실제 키움 주문을 호출하는 테스트는 추가하지 않는다.
+
+recorder는 desk-bridge-v6.mjs의 실제 recorder callback 이벤트를 artifacts/desk-recorder.v6.json에 저장한다. {schemaVersion:1,harnesses:[{id,events}]} 형식이며 각 harness의 seq를 유지한다. 기존 fixture 비교 assertion을 그대로 실행하고 성공한 실행에 한해서만 아티팩트를 쓴다. 생성되지 않은 과거 아티팩트로 PASS를 판정하지 않는다.
+
+t12는 독립 재구성 증거가 준비되지 않은 현재 상태에서 MISSING_REVIEW로 FAIL한다. 문서/fixture 자기 검사를 독립 T12로 대체하지 않는다. 독립 검토 evidence 비교 계약이 완성되기 전에는 --t12를 성공 경로로 연결하지 않는다.
+
 ## D14.foundation-r7.review — 구현 전 남은 승인·검토
 
 1. 해결: 2026-09-06 사용자 `예`로 B1~B5/B7/B13/B18 확장 승인 및 반영. 동일 좌표에 대한 재승인은 요청하지 않는다.
-2. resource-types/reconciliation/command-journal 계약 추가 완료. 남은 항목은 provider 선언 스키마, wire 응답 상관관계/timeout과 데이터별 reducer의 완전 필드 매핑이다. 이 부분은 일반적인 설계 방향만으로 구현하지 않는다.
-3. canonical v7 fixture 작성 및 내부 v6 무손실 검증 완료. F01~F12 실제 골든 event 배열과 독립 T12 검토는 미완료. 자기 검토를 독립 검토로 표기하지 않는다.
+2. resource-types/reconciliation/command-journal/wire-profile/normalized-events 계약 작성 완료. 서술과 필드·경계 처리의 완전성은 독립 재구성으로 검토한다. 검토 전 OPEN을 닫거나 구현 완료로 판정하지 않는다.
+3. canonical v7 fixture 작성 및 내부 v6 무손실 검증 완료. tests/fixtures/foundation-r7.contract.json에 14개 기대 시나리오 작성. fixture는 설계 자료이며 F01~F12의 실행 harness/전체 부하/장중 실증을 대체하지 않는다. 독립 T12와 비교기 미완료, --t12는 MISSING_REVIEW로 실패한다.
 
 상기 항목이 남아 있으므로 이 실행 설계안은 완성/승인된 제품 명세가 아니다. 기존 realtime-foundation OPEN 1~4는 이 상세 항목과 연계 관리한다. 목표·순서·공식 wire 카탈로그·성능 측정 조건은 이번 설계 tranche 산출물이다.

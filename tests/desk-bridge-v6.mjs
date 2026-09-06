@@ -4,6 +4,8 @@ import { canonicalHash, createDesk } from '../web/js/desk.js';
 import { referenceHash, vectors } from './reference/canonical-hash.mjs';
 
 const fixture = JSON.parse(fs.readFileSync(new URL('./fixtures/desk-traces.v6.json', import.meta.url), 'utf8'));
+// Design: D11.v6.check-runner — capture actual callbacks, never fixture copies.
+const recorderHarnesses = [];
 
 // [D8.v6.canonical-hash] Product and independent reference agree with literal vectors.
 for (const [name, value] of Object.entries(vectors)) {
@@ -21,6 +23,7 @@ function harness({ throwRemove = false } = {}) {
   const calls = [];
   const logs = [];
   const recorded = [];
+  recorderHarnesses.push({ id: `h${recorderHarnesses.length + 1}`, events: recorded });
   const inputs = [], pointers = new Map();
   const frame = {
     createFrame: (_host, id, rect, on) => { pointers.set(id, on); return { id, rect, on, body: { id } }; },
@@ -139,4 +142,8 @@ assert.ok(failing.logs.some((line) => line.includes('[DESK!] remove f1')));
 result = failing.desk.apply({ mode: 'delta', items: [], absentIds: ['f1'], order: { mode: 'keep', id: null } });
 assert.deepEqual(result.events, []);
 
+if (process.env.DESK_RECORDER_OUTPUT) {
+  fs.writeFileSync(process.env.DESK_RECORDER_OUTPUT,
+    JSON.stringify({ schemaVersion: 1, harnesses: recorderHarnesses }, null, 2) + '\n');
+}
 console.log('[PASS] D7/D8/D11 generic desk bridge traces and locality');

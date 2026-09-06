@@ -1,0 +1,26 @@
+{
+ "schemaVersion":1,
+ "scope":"market-symbol-d",
+ "reviewer":{"id":"review_envelope_b","independent":true},
+ "readFiles":["rules.md","README.md"],
+ "readmeSha256":"2f75ebc3659531e7001e374d0759c38f5daf63176900b43c6744cb8be096a7f6",
+ "rulesSha256":"cc5d71548f84ede8445ea48ed4019056ea6a8ae31a4578526e8f266e11e0cc6c",
+ "verdict":"PASS",
+ "signatures":["candles(code, tf, count=None, since=0)","quote(code)","renderLegend(host, form, catalog, patch, document, nameOf = () => '') -> undefined (sync)"],
+ "signatureGaps":[],
+ "contract":{"queryCode":"Exactly six ASCII digits optionally followed by uppercase _AL or _NX; UI trims then validates and limits to 9 characters. Preserve full code through input/link/restore/candle props/API/cache. Reject paths, lowercase suffixes and extra characters.","orders":"Only six digits; never truncate suffix to send an order.","name":"quote.name is trimmed stk_nm only if string, else empty. Runtime display only, no desired STATE persistence. DOM textContent only.","feed":"After bars/signals fetch, at most one quote query per feed pull using full code. Failed name query sets empty name and retains bars. Name belongs to existing feed and its 32-idle eviction. Late code responses stay scoped to their feed key. Existing draw precedes legend refresh.","ui":"Enter/change commits; incomplete input restores previous code. Quote screen commits response only when code still matches and screen is mounted.","network":"Mock suffix rejection before network, no KRX fallback. Existing real-server code forwarded unchanged. Existing KST conversion; no synthetic bars or forced time shifts."},
+ "scenarios":[
+  {"id":"MSD1","expected":{"preservedCodes":["005930_AL","000660_NX"],"preservedAt":["input","link","restore","props"]}},
+  {"id":"MSD2","expected":{"distinctCacheKeys":true,"rejected":["../","invalid suffix"]}},
+  {"id":"MSD3","expected":{"stk_cd":"original full code","name":"typeof stk_nm === string ? stk_nm.trim() : empty string"}},
+  {"id":"MSD4","expected":{"networkCalls":0,"errorType":"KiwoomError","message":"모의투자는 KRX만 지원합니다. NXT/SOR 조회는 실서버 연결이 필요합니다."}},
+  {"id":"MSD5","expected":{"networkCalls":0,"message":"Invalid stock code"}},
+  {"id":"MSD6","expected":{"labelWithName":"${name} · ${code || '종목 없음'} · ${tf || ''} · ${id}","labelWithoutName":"${code || '종목 없음'} · ${tf || ''} · ${id}","fullCodePreserved":true,"selectionChanges":0,"stateWrites":0,"textContentOnly":true},"concreteExample":{"code":"005930_AL","tf":"1m","id":"candles1","name":"삼성전자","labelWithName":"삼성전자 · 005930_AL · 1m · candles1","labelWithoutName":"005930_AL · 1m · candles1"}},
+  {"id":"MSD7","expected":{"staleTableUpdatesAfterCodeChange":0,"tableUpdatesAfterUnmount":0}}
+ ],
+ "mismatches":[],
+ "resolvedFindings":[
+  {"id":"MSD-LEGEND-SIGNATURE","status":"RESOLVED","reason":"Re-read D1-D14 after correction: D6 now fixes all six parameter names/order, optional nameOf default and synchronous undefined return."},
+  {"id":"MSD-LEGEND-EXACT-LABEL","status":"RESOLVED","reason":"D6 now specifies exact label templates and string-only normalized nameOf contract. MSD6 exact display can be independently reconstructed. No remaining blocking mismatch found within scoped behavior change."}
+ ]
+}

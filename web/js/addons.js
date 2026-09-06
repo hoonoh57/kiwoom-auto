@@ -1,3 +1,4 @@
+// Design: D3.market-symbol-d.types
 const memo = new Map();
 function cached(key, fn) {
   if (memo.has(key)) return memo.get(key);
@@ -106,7 +107,7 @@ const CANDLE_COLORS = [
   ['#26a69a', '#ef5350'], ['#5b8def', '#f2b632'],
   ['#a875e8', '#e88b75'], ['#45b8c4', '#d467a9'],
 ];
-const codeOf = (v, d) => (/^\d{6}$/.test(String(v || '')) ? String(v) : String(d || ''));
+const codeOf = (v, d) => (/^[0-9]{6}(?:_(?:AL|NX))?$(?![\s\S])/.test(String(v || '')) ? String(v) : String(d || ''));
 const tfOf = (v, d) => (CANDLE_TF.has(v) ? v : d);
 const dataOf = (ctx, p) => (ctx.dataFor ? ctx.dataFor(p && p.dataKey) : ctx);
 const candleColors = (id) => {
@@ -141,7 +142,7 @@ registry.set('candles', {
   meta: { selectable: true, label: '캔들', pane: 'main', paneH: 95, auto: true, configureOnAdd: true,
     summary: (it) => `${it.props.code || '상단 종목'} ${it.props.tf || '상단 주기'} ${it.props.placement === 'pane' ? '서브' : '중첩'}`.trim(),
     schema: [
-    { k: 'code', t: 'text', label: '종목코드 (빈칸: 상단)', pattern: '^(?:\\d{6})?$', maxLength: 6, def: '', create: true,
+    { k: 'code', t: 'text', label: '종목코드 (빈칸: 상단)', pattern: '^(?:[0-9]{6}(?:_(?:AL|NX))?)?$', maxLength: 9, def: '', create: true,
       patch: (v) => ({ code: v || null, baseTime: null, baseValue: null }) },
     { k: 'tf', t: 'select', label: '주기', def: '', create: true, options: [
       ['', '상단 주기'],

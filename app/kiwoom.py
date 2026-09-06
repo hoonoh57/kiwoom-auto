@@ -48,6 +48,14 @@ def _symbol(code):
         raise KiwoomError('Invalid stock code')
 
 
+# Design: D5.market-symbol-d.catalog
+def _query_symbol(code):
+    if not re.fullmatch(r'[0-9]{6}(?:_(?:AL|NX))?', code):
+        raise KiwoomError('Invalid stock code')
+    if config.USE_PAPER and len(code) != 6:
+        raise KiwoomError('모의투자는 KRX만 지원합니다. NXT/SOR 조회는 실서버 연결이 필요합니다.')
+
+
 # Design: D5.rest-api.contract
 class LiveAdapter:
     mode = 'live'
@@ -128,7 +136,7 @@ class LiveAdapter:
 
     # Design: D5.rest-api.contract
     def candles(self, code, tf, count=None, since=0):
-        _symbol(code)
+        _query_symbol(code)
         if tf not in CHARTS:
             raise KiwoomError('Unknown timeframe')
         limit = min(config.MAX_BARS, max(1, count or config.FETCH_COUNT))
@@ -151,9 +159,10 @@ class LiveAdapter:
 
     # Design: D5.rest-api.contract
     def quote(self, code):
-        _symbol(code)
+        _query_symbol(code)
         d, _, _ = self._call(config.EP['quote'], 'ka10001', {'stk_cd': code})
-        return {'code': code, 'price': _number(d, 'cur_prc', True),
+        return {'code': code, 'name': d['stk_nm'].strip() if isinstance(d.get('stk_nm'), str) else '',
+                'price': _number(d, 'cur_prc', True),
                 'change': _number(d, 'pred_pre'), 'rate': _number(d, 'flu_rt'),
                 'volume': _number(d, 'trde_qty', True)}
 

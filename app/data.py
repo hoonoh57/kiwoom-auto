@@ -1,3 +1,4 @@
+# Design: D3.market-symbol-d.types
 # Design: D4.rest-api.cache
 import hashlib
 import json
@@ -10,7 +11,7 @@ from . import config
 
 
 def _path(code, tf):
-    if not re.fullmatch(r"[0-9]{6}", code) or tf not in config.TFSEC:
+    if not re.fullmatch(r"[0-9]{6}(?:_(?:AL|NX))?", code) or tf not in config.TFSEC:
         raise ValueError("Invalid market cache key")
     return config.DATA_DIR / config.SOURCE / f"{code}_{tf}.json"
 

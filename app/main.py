@@ -1,3 +1,4 @@
+# Design: D3.market-symbol-d.types
 import time
 import re
 from urllib.parse import unquote
@@ -13,7 +14,7 @@ app = FastAPI(title="kiwoom-auto")
 
 
 def _bars(code, tf, force=False):
-    if not re.fullmatch(r"[0-9]{6}", code) or tf not in config.TFSEC:
+    if not re.fullmatch(r"[0-9]{6}(?:_(?:AL|NX))?", code) or tf not in config.TFSEC:
         raise HTTPException(400, "invalid code/tf")
     rec = data.load(code, tf)
     if force or not data.is_fresh(rec):

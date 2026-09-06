@@ -1,3 +1,4 @@
+// Design: D3.market-symbol-d.types
 /* screens/quote.js - screen kind 'quote' [0101]. */
 
 const el = (t, c) => { const n = document.createElement(t); if (c) n.className = c; return n; };
@@ -19,7 +20,7 @@ export const SCREEN = {
     const root = el('div', 'qf');
     const cin = el('input', 'qf-code');
     cin.value = form.code || '';
-    cin.maxLength = 8;
+    cin.maxLength = 9;
     const tbl = el('div', 'qf-tbl mono');
     root.append(cin, tbl);
     host.append(root);
@@ -30,23 +31,25 @@ export const SCREEN = {
     };
     cin.onchange = () => {
       const v = cin.value.trim();
-      if (/^\d{6}$/.test(v)) { if (v !== ctx.form().code) ctx.setCode(v); }
+      if (/^[0-9]{6}(?:_(?:AL|NX))?$(?![\s\S])/.test(v)) { if (v !== ctx.form().code) ctx.setCode(v); }
       else cin.value = ctx.form().code;
     };
 
-    const h = { root, cin, timer: 0 };
+    const h = { root, cin, timer: 0, stopped: false };
     h.pull = async () => {
       const f = ctx.form();
-      if (!f) return;
+      if (!f || h.stopped) return;
+      const code = f.code;
       try {
         const q = await fetch('/api/quote?code=' + encodeURIComponent(f.code)).then((r) => r.json());
+        if (h.stopped || ctx.form()?.code !== code) return;
         tbl.textContent = Object.entries(q).slice(0, 18)
           .map(([k, v]) => String(k).padEnd(16) + String(v)).join('\n');
-      } catch (e) { tbl.textContent = 'ERR ' + e; }
+      } catch (e) { if (!h.stopped && ctx.form()?.code === code) tbl.textContent = 'ERR ' + e; }
     };
     h.pull();
     h.timer = setInterval(h.pull, 5000);
-    h.stop = () => { clearInterval(h.timer); root.remove(); };
+    h.stop = () => { h.stopped = true; clearInterval(h.timer); root.remove(); };
     return h;
   },
 

@@ -1367,3 +1367,38 @@ W는 A의 W, E는 A의 E(W). E2는 E에 p2(name="Second", 나머지는 p1 clone)
 설계 선택 사항 0. 독립 T12 통과 전 제품 코드 금지. 사용자 기존 순차 구현 승인 범위이며 저장/UI 계약은 여전히 별도.
 
 ## D14.project-commands-c.end
+
+## D1.market-symbol-d — 시장코드와 종목명 수정
+### D2.market-symbol-d.boundary
+STATE deskspec의 코드 검증, ADDON addons/screens와 기존 REST adapter/data/main 조회 경로만 수정. ENGINE/BRIDGE/store 변경 0. 사용자 요청 범위. 주문 시장 라우팅 변경 없음.
+### D3.market-symbol-d.types
+조회 종목 문자열은 ASCII 숫자 6자리와 선택적 대문자 _AL 또는 _NX. UI trim 후 검사, 최대 9자. 입력/링크/복원/캔들 props/API stk_cd/파일 및 메모리 캐시 키까지 접미사 유지. 기존 6자 의미 유지. 코드에 경로 문자·소문자 접미사·추가 문자는 거부. 주문 API와 adapter.order는 기존 6자리만 허용하며 접미사를 잘라 주문하지 않는다.
+### D4.market-symbol-d.state
+schema 변경 없음. form.code 및 candle props.code의 허용 문자열만 확장. 이름은 runtime 응답으로만 표시하며 desired JSON에 저장하지 않는다. 기존 fixture 그대로 유효.
+### D5.market-symbol-d.catalog
+키움 공식 https://openapi.kiwoom.com/m/guide/apiguide?jobTpCode=07 및 Kiwoom-Securities/Kiwoom-REST-API 차트.md: KRX=6자리, NXT=_NX, SOR=_AL. 모의 도메인 KRX만 지원. adapter candles/quote는 모의 환경 접미사 요청을 네트워크 호출 전 KiwoomError('모의투자는 KRX만 지원합니다. NXT/SOR 조회는 실서버 연결이 필요합니다.')로 거부. 실서버는 stk_cd 원문 전송. 시간은 기존 KST 변환만 사용, 08~20시 가상 봉 생성/강제 시간 이동 없음.
+### D6.market-symbol-d.api
+renderLegend(host, form, catalog, patch, document, nameOf = () => '') -> undefined (동기). 기본 label은 `${code || '종목 없음'} · ${tf || ''} · ${id}`, nameOf(code,tf)의 비어 있지 않은 문자열이 있으면 `${name} · `를 앞에 붙인다. nameOf는 runtime에서 정규화된 이름 string만 반환한다.
+기존 candles/quote 시그니처 유지. quote 결과에 name:string 추가: stk_nm이 string이면 trim, 없거나 다른 타입이면 빈 문자열. 주문 _symbol 검사는 6자리 그대로, 조회만 시장코드 별도 검사. /api/bars 입력 및 data cache 검증은 확장 문자열 허용. quote 화면은 응답 name 필드를 기존 표에 표시.
+### D7.market-symbol-d.flow
+차트 공유 feed pull은 bars/signals 조회 뒤 동일 전체 code로 quote 조회 추가. quote.name을 data.name으로 제공, 실패하면 빈 문자열. 이름 실패는 bars를 폐기하지 않는다. 이름은 기존 feed 생명주기/32 idle eviction에 귀속, 새 영속 저장소 없음. callback에서 기존 draw 뒤 legend 재표시. renderLegend의 기존 5개 인자는 유지하고 선택적 6번째 nameOf(code,tf) callback을 추가(기본 빈 이름). 각 legend label은 name이 있으면 '이름 · 기존 코드 · 주기 · ID', 없으면 기존 label. DOM textContent만 사용. 서로 다른 코드의 늦은 응답은 해당 feed key에만 귀속. quote 화면도 응답 시 현재 code 일치 및 unmount 안 됨을 확인 후 표를 갱신한다.
+### D8.market-symbol-d.equality
+6자리/_AL/_NX는 서로 다른 data key. 이름 표시만으로 STATE write/series lifecycle 변경 없음. UI 입력은 Enter 또는 change로 확정, 미완성 입력은 이전 코드 복원.
+### D9.market-symbol-d.effective
+연결 모드·계좌 설정 자동 변경 0, 주문 전송 테스트 0. 모의 환경 미지원 조회는 KRX로 fallback하지 않는다.
+### D10.market-symbol-d.errors
+잘못된 조회 코드: 기존 invalid code 오류. 올바른 접미사+모의: D5 명시 오류. API bars는 기존 error 필드/quote는 기존 HTTP 오류 경로 사용. 이름 누락/조회 실패: 종목코드만 표시, 기존 candle 데이터 유지.
+### D11.market-symbol-d.vectors
+MSD1: 005930_AL/000660_NX 입력·링크·복원·props 접미사 보존.
+MSD2: 동일 base 6자리/_AL/_NX cache path 서로 다름, ../ 및 잘못된 접미사 거부.
+MSD3: 실서버 adapter candles/quote stk_cd 원문 전송, quote stk_nm -> name.
+MSD4: 모의 접미사 조회는 네트워크 0, D5 오류.
+MSD5: 접미사 주문은 네트워크 0, 기존 Invalid stock code 오류.
+MSD6: legend name callback의 종목명+전체 코드 표시, 빈 이름은 기존 label, selection/STATE write 0.
+MSD7: quote 응답 후 코드 변경/unmount이면 오래된 표 갱신 0.
+### D12.market-symbol-d.cost
+기존 활성 feed마다 pull당 quote 최대 1회 추가. 종목명 조회가 전체 등록 프로젝트를 순회하지 않음. 신규 WSS/성능 보장 완료 주장 금지. 현재 REST 유량 제한 재사용.
+### D13.market-symbol-d.files
+app/main.py, app/data.py, app/kiwoom.py, web/js/deskspec.js, web/js/addons.js, web/js/screens/{chart,chart-selection,quote,order}.js. 기존 tests/test_kiwoom_rest.py 및 tests/market-symbol-d.mjs에 검증 추가. README/todo 기록.
+### D14.market-symbol-d.open
+결정 사항 0, 독립 T12 후 사용자 요청에 따라 구현. 실서버 credentials 전환과 실제 NXT 다운로드 실증은 이번 코드 수정과 별개.

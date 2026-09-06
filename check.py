@@ -124,7 +124,7 @@ JS_TESTS = (
     "desk-bridge-v6.mjs", "deskspec-v6.mjs", "frame-v6.mjs",
     "indicator-sync-v6.mjs", "multisymbol-candles.mjs", "state-projection-v6.mjs",
     "ui-slots-v6.mjs", "workspace-tools-v6.mjs",
-    "project-envelope-a.mjs", "project-envelope-b.mjs", "project-commands-c.mjs",
+    "project-envelope-a.mjs", "project-envelope-b.mjs", "project-commands-c.mjs", "market-symbol-d.mjs",
 )
 
 

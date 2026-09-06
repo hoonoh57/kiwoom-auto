@@ -1,3 +1,4 @@
+// Design: D3.market-symbol-d.types
 /* deskspec.js - schemaVersion 6 STATE.
    Pure state policy: no DOM, network, persistence, or screen-kind branches. */
 
@@ -187,7 +188,7 @@ export function defaultForm(st, kind, seed0, cat, bounds) {
   const form = {
     screen: String(kind || ''), vd, allVd: !!seed.allVd, visible: seed.visible !== false,
     title: typeof seed.title === 'string' && seed.title ? seed.title : null,
-    code: needCode ? (/^\d{6}$/.test(String(seed.code || '')) ? String(seed.code) : DEF_CODE) : null,
+    code: needCode ? (/^[0-9]{6}(?:_(?:AL|NX))?$(?![\s\S])/.test(String(seed.code || '')) ? String(seed.code) : DEF_CODE) : null,
     tf: needTf ? (typeof seed.tf === 'string' && seed.tf ? seed.tf : DEF_TF) : null,
     link: seed.link === 'pin' ? 'pin' : 'follow',
     shareGroup: /^(all|10|[1-9])$/.test(String(seed.shareGroup || 'all')) ? String(seed.shareGroup || 'all') : 'all',
@@ -258,7 +259,7 @@ function normalizeForm(id, raw0, activeVd, oldToNew, options, repairs) {
   const rect = normalRect(raw.rect, meta, options.bounds);
   const prevRect = normalRect(raw.prevRect || rect, meta, options.bounds);
   const code = meta.needCode === false ? null
-    : (/^\d{6}$/.test(String(raw.code || '')) ? String(raw.code) : (meta.needCode ? DEF_CODE : null));
+    : (/^[0-9]{6}(?:_(?:AL|NX))?$(?![\s\S])/.test(String(raw.code || '')) ? String(raw.code) : (meta.needCode ? DEF_CODE : null));
   const tf = meta.needTf === false ? null
     : (typeof raw.tf === 'string' && raw.tf ? raw.tf : (meta.needTf ? DEF_TF : null));
   const form = {
@@ -550,7 +551,7 @@ export const __test = { exactPatch, normalRect, idNum, FORM_KEYS, ROOT_KEYS, VD_
 // Design: D7.v6.symbol-link
 export function symbolPatch(st, sourceId, code, screenCatalog) {
   const source = st.forms[sourceId];
-  if (!source || !/^\d{6}$/.test(code)) return null;
+  if (!source || !/^[0-9]{6}(?:_(?:AL|NX))?$(?![\s\S])/.test(code)) return null;
   const forms = { [sourceId]: { code } };
   if (source.link === 'pin') return { forms };
   const ids = Object.keys(st.forms).sort((a,b) => idNum(a)-idNum(b) || (a < b ? -1 : 1));

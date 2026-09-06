@@ -1,3 +1,4 @@
+// Design: D3.market-symbol-d.types
 /* screens/order.js - screen kind 'order' [8949]. */
 
 import * as bus from '../bus.js';
@@ -24,7 +25,7 @@ export const SCREEN = {
     const root = el('div', 'of');
     const cin = el('input', 'of-code');
     cin.value = form.code || '';
-    cin.maxLength = 8;
+    cin.maxLength = 9;
     const qty = el('input', 'of-qty');
     qty.type = 'number';
     qty.min = 1;
@@ -52,7 +53,7 @@ export const SCREEN = {
     };
     cin.onchange = () => {
       const v = cin.value.trim();
-      if (/^\d{6}$/.test(v)) { if (v !== ctx.form().code) ctx.setCode(v); }
+      if (/^[0-9]{6}(?:_(?:AL|NX))?$(?![\s\S])/.test(v)) { if (v !== ctx.form().code) ctx.setCode(v); }
       else cin.value = ctx.form().code;
     };
     qty.onchange = () => ctx.patchBody({ qty: Math.max(1, Math.round(+qty.value) || 1) });

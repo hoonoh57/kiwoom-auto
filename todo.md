@@ -2,6 +2,12 @@
 
 ## 한 일
 
+- [x] market-symbol-d APPROVED/OPEN 0: 사용자 _AL 입력·종목명 수정 요청으로 범위 승인. 공식 시장코드/모의 KRX 제한 확인, 독립 T12 시그니처·MSD1~7 재구성 PASS 후 코드 착수. ENGINE/BRIDGE 변경 없이 조회 식별자 확장, 주문은 기존 6자리 경계 유지.
+- [x] market-symbol-d 구현: 입력 9자리, _AL/_NX 링크·복원·캔들 props·조회·캐시 보존, quote.name/레전드 종목명 표시, 늦은 quote 응답 격리. 모의 접미사는 명시 오류, 실제 계좌 환경 자동 전환 0.
+- [x] 검증: JS 15개/Python 28개 및 static/recorder PASS. 네트워크 제한을 받던 8077 서버를 동일 프로젝트로 재시작한 후 실제 모의 REST 000660 종목명 SK하이닉스 확인. _AL bars는 code 원문 보존 및 KRX 전용 안내 확인. 실제 NXT 데이터 다운로드/브라우저 시각 확인은 미실행, 실서버 인증 설정 필요. 사용자 workspace 변경 0, 주문 전송 0.
+
+- [ ] 2026-09-07 화면검증 요청: 중지된 8077 서버를 숨김 프로세스로 실행. 페이지/health/recovery HTTP 200, 모의 서버 인증 설정 존재 확인(실제 인증·시세 응답 검증 아님). Browser runtime 연결 목록이 비어 있어 렌더링/클릭/차트 시각 검증은 미실행. 브라우저 연결 후 재개. 사용자 STATE 변경 0.
+
 - [x] 2026-09-06 사용자 지시로 상시 문서를 README.md(설명·상세 설계), rules.md(헌법), todo.md(한 일·할 일) 세 개로 통일. 기존 design.md 설계를 README.md로 이전하고 검사기 참조 갱신. rules.md A0/A12에 `세션복구!` 순서와 세션 종료 기록 의무 명시.
 - [x] 문서 이전 검증: check.py PASS, git diff --check 통과. 문서 참조의 design.md 잔여는 이전 이력 설명뿐이다. 전체 실시간/아키텍처 acceptance를 통과했다는 의미는 아니다.
 
@@ -163,6 +169,7 @@ OPEN         : 전체 T12 차단 14개 / project-envelope-a/b 및 project-comman
 게이트       : C T12·static·semantic·recorder PASS; 전체 새 범위 독립 재검토 필요
 다음 설계 ID : README.md D7.project-storage.followup, D3/D4.foundation-r7, T12-R7-004
 다음 행동    : v6 strict validator와 저장 ack·실패 계약 확정 후 독립 검토. CRUD 순수 명령은 완료, UI/파일 저장 연결은 미완료. review_envelope_b로 검토 가능
+최근 화면수정: D1~D14.market-symbol-d 구현/독립 PASS. 8077 재시작 반영, 브라우저 새로고침 후 종목명/접미사 확인 필요. 모의는 KRX 전용
 검증 잔여    : 실시간 구현/부하/복구, 프로젝트 격리, 브라우저 acceptance, 전체 ARCH PASS
 ```
 

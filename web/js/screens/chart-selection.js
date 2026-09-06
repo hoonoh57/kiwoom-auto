@@ -18,7 +18,8 @@ export function contentKey(form) {
 }
 
 // Design: D5.v6.legend-selection
-export function renderLegend(host, form, catalog, patch, document) {
+// Design: D6.market-symbol-d.api
+export function renderLegend(host, form, catalog, patch, document, nameOf = () => '') {
   host.replaceChildren();
   for (const id of form.body.order) {
     const item = form.body.items[id];
@@ -27,7 +28,8 @@ export function renderLegend(host, form, catalog, patch, document) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'cf-legend-item';
-    button.textContent = `${source?.code || '종목 없음'} · ${source?.tf || ''} · ${id}`;
+    const name = nameOf(source?.code, source?.tf);
+    button.textContent = `${name ? name + ' · ' : ''}${source?.code || '종목 없음'} · ${source?.tf || ''} · ${id}`;
     button.disabled = !selectable(form.body, id, catalog.meta);
     button.setAttribute('aria-pressed', String(!button.disabled && form.body.ui?.selectedItemId === id));
     button.onclick = () => patch(id);

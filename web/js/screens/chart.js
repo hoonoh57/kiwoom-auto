@@ -1,3 +1,4 @@
+// Design: D3.market-symbol-d.types
 import { reconcileIndicators, toggleIndicatorSync, indicatorBodyPatch, indicatorProfile } from '../indicator-state.js';
 import { marketTimeOptions } from './chart-time.js';
 /* screens/chart.js - screen kind 'chart' [0615].
@@ -35,8 +36,14 @@ async function pull(key, force) {
     const b = await fetch(`/api/bars?${q}${force ? '&force=1' : ''}`).then((r) => r.json());
     let g = { markers: [], eval: null };
     try { g = await fetch(`/api/signals?${q}`).then((r) => r.json()); } catch (e) { /* 신호 없음 */ }
+    // Design: D7.market-symbol-d.flow — identity follows the complete feed key.
+    let name = '';
+    try {
+      const quote = await fetch(`/api/quote?code=${encodeURIComponent(seg[0])}`).then(r => r.json());
+      if (typeof quote.name === 'string') name = quote.name;
+    } catch { /* A missing name must not discard candles. */ }
     data = { bars: b.bars || [], barsHash: b.barsHash || '', liveBar: b.live || null,
-             markers: g.markers || [], ev: g.eval || null, err: b.error || null };
+             markers: g.markers || [], ev: g.eval || null, err: b.error || null, name };
   } catch (e) {
     data = { bars: [], barsHash: 'err', liveBar: null, markers: [], ev: null, err: String(e) };
   }
@@ -172,8 +179,8 @@ export const SCREEN = {
     const bar = el('div', 'cf-bar');
     const cin = el('input', 'cf-code');
     cin.value = form.code || '';
-    cin.maxLength = 8;
-    cin.title = '종목코드 6자리';
+    cin.maxLength = 9;
+    cin.title = '종목코드: 005930 / 005930_AL(SOR) / 005930_NX(NXT)';
     const tsel = el('select', 'cf-tf');
     for (const tf of (ctx.env.tf || [form.tf])) {
       const o = el('option');
@@ -243,7 +250,7 @@ export const SCREEN = {
       renderLegend(legend, ctx.form(), addons, (id) => {
       const value = selectionPatch(ctx.form().body, id, addons.meta);
       if (value) ctx.patchBody(value);
-    }, document);
+    }, document, (code, tf) => h.dataByKey.get(keyOf(code, tf))?.name || '');
     };
     const cbs = {
       toggleOpen: (k, v) => ctx.patchBody({ ui: { open: { [k]: v } } }),
@@ -309,7 +316,7 @@ export const SCREEN = {
     };
     cin.onchange = () => {
       const v = cin.value.trim();
-      if (/^\d{6}$/.test(v)) { if (v !== ctx.form().code) ctx.setCode(v); }
+      if (/^[0-9]{6}(?:_(?:AL|NX))?$(?![\s\S])/.test(v)) { if (v !== ctx.form().code) ctx.setCode(v); }
       else cin.value = ctx.form().code;
     };
     tsel.onchange = () => ctx.patchForm({ tf: tsel.value });
@@ -354,7 +361,7 @@ export const SCREEN = {
       }
       for (const [key, src] of wanted) {
         if (h.unsubs.has(key)) continue;
-        h.unsubs.set(key, subscribe(src.code, src.tf, (d) => { h.dataByKey.set(key, d); draw(false); }));
+        h.unsubs.set(key, subscribe(src.code, src.tf, (d) => { h.dataByKey.set(key, d); draw(false); h.legend(); }));
       }
     }
 

@@ -19,6 +19,30 @@ def bar(stamp='20260904153000', price='-70000'):
 
 
 class RestTests(unittest.TestCase):
+    # Design: D11.market-symbol-d.vectors MSD2-MSD5
+    def test_market_symbol_d_suffix_name_and_order_boundary(self):
+        paths = [data._path(code, '5m') for code in ['005930', '005930_AL', '005930_NX']]
+        self.assertEqual(len(set(paths)), 3)
+        for code in ['../005930', '005930_XX', '005930_al', '005930_AL/x']:
+            with self.assertRaises(ValueError): data._path(code, '5m')
+        for code in ['005930_AL', '005930_NX']:
+            with patch.object(config, 'USE_PAPER', True), patch.object(self.adapter, '_call') as call:
+                with self.assertRaisesRegex(kiwoom.KiwoomError, 'KRX'):
+                    self.adapter.quote(code)
+                with self.assertRaisesRegex(kiwoom.KiwoomError, 'KRX'):
+                    self.adapter.candles(code, '5m')
+                call.assert_not_called()
+            with patch.object(config, 'USE_PAPER', False), patch.object(self.adapter, '_call') as call:
+                call.return_value=({'stk_nm':' 삼성전자 ', 'cur_prc':'10','pred_pre':'1','flu_rt':'1','trde_qty':'2'},'N','')
+                self.assertEqual(self.adapter.quote(code)['name'], '삼성전자')
+                self.assertEqual(call.call_args.args[2]['stk_cd'], code)
+                with self.assertRaisesRegex(kiwoom.KiwoomError, 'Invalid stock code'):
+                    self.adapter.order(code,'BUY',1,0)
+                self.assertEqual(call.call_count,1)
+            with patch.object(config,'USE_PAPER',False), patch.object(self.adapter,'_pages',return_value=({},[bar()])) as pages:
+                self.assertEqual(len(self.adapter.candles(code,'5m')),1)
+                self.assertEqual(pages.call_args.args[1]['stk_cd'],code)
+
     # Design: D11.rest-api.acceptance
     def setUp(self):
         self.settings = patch.multiple(config, APPKEY='fixture-key', SECRETKEY='fixture-secret')

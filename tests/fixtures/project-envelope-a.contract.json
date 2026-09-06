@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "designId": "D11.project-envelope-a.vectors",
+  "workspace": {
+    "schemaVersion": 6,
+    "marker": "keep",
+    "opaque": {
+      "items": [
+        {
+          "kind": "future",
+          "visible": false,
+          "props": {
+            "n": 3
+          }
+        }
+      ]
+    }
+  },
+  "envelope": {
+    "schemaVersion": 7,
+    "projectSeq": 2,
+    "activeProjectId": "p1",
+    "projectOrder": [
+      "p1"
+    ],
+    "projects": {
+      "p1": {
+        "name": "기본 프로젝트",
+        "enabled": true,
+        "props": {
+          "connectionRef": "default",
+          "dataEnabled": true,
+          "automationEnabled": false
+        },
+        "workspace": {
+          "schemaVersion": 6,
+          "marker": "keep",
+          "opaque": {
+            "items": [
+              {
+                "kind": "future",
+                "visible": false,
+                "props": {
+                  "n": 3
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "publicSignatures": [
+    "wrapWorkspaceJson(text, validateWorkspace) -> envelope",
+    "projectWorkspacePath(projectId) -> string",
+    "selectProject(root, projectId) -> root"
+  ],
+  "errorVectors": [
+    {
+      "id": "PEA3",
+      "text": "{",
+      "code": "INVALID_JSON",
+      "callbackCount": 0
+    },
+    {
+      "id": "PEA4",
+      "text": "{\"schemaVersion\":7}",
+      "code": "WORKSPACE_VERSION",
+      "callbackCount": 0
+    },
+    {
+      "id": "PEA11",
+      "text": "{\"schemaVersion\":6,\"n\":1e999}",
+      "code": "INVALID_JSON",
+      "callbackCount": 0
+    }
+  ],
+  "lifecycle": [],
+  "reviewAssertions": {
+    "PEA1": {
+      "value": "E(W)",
+      "callbackCalls": 1,
+      "freshRootAndWorkspaceGraph": true,
+      "lifecycle": []
+    },
+    "PEA2": {
+      "value": "E(W)",
+      "workspaceMarker": "keep",
+      "callbackCalls": 1,
+      "callbackCloneMarker": "changed",
+      "lifecycle": []
+    },
+    "PEA3": {
+      "throwsSynchronously": "INVALID_JSON",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEA4": {
+      "throwsSynchronously": "WORKSPACE_VERSION",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEA5": {
+      "throwsSynchronously": "WORKSPACE_INVALID",
+      "callbackCalls": 1,
+      "lifecycle": []
+    },
+    "PEA6": {
+      "results": [
+        {
+          "value": "projects/p12/workspace"
+        },
+        {
+          "throwsSynchronously": "INVALID_PROJECT_ID"
+        },
+        {
+          "throwsSynchronously": "INVALID_PROJECT_ID"
+        }
+      ],
+      "lifecycle": []
+    },
+    "PEA7": {
+      "returnIsInputRoot": true,
+      "activeProjectId": "p1",
+      "inputUnchanged": true,
+      "lifecycle": []
+    },
+    "PEA8": {
+      "returnIsInputRoot": false,
+      "activeProjectId": "p2",
+      "originalActiveProjectId": "p1",
+      "preservedIdentities": [
+        "projects",
+        "projectOrder",
+        "projects.p1.workspace",
+        "projects.p2.workspace"
+      ],
+      "onlyChangedRootField": "activeProjectId",
+      "inputUnchanged": true,
+      "lifecycle": []
+    },
+    "PEA9": {
+      "throwsSynchronously": "PROJECT_DISABLED",
+      "inputUnchanged": true,
+      "lifecycle": []
+    },
+    "PEA10": {
+      "throwsSynchronously": "PROJECT_NOT_FOUND",
+      "inputUnchanged": true,
+      "lifecycle": []
+    },
+    "PEA11": {
+      "throwsSynchronously": "INVALID_JSON",
+      "callbackCalls": 0,
+      "lifecycle": []
+    },
+    "PEA12": {
+      "throwsSynchronously": "WORKSPACE_INVALID",
+      "callbackCalls": 1,
+      "awaitCallbackResult": false,
+      "lifecycle": []
+    }
+  }
+}

@@ -1088,7 +1088,86 @@ semantic은 tests의 등록된 JS 회귀 파일 전체와 test_kiwoom_rest.py/te
 
 recorder는 desk-bridge-v6.mjs의 실제 recorder callback 이벤트를 artifacts/desk-recorder.v6.json에 저장한다. {schemaVersion:1,harnesses:[{id,events}]} 형식이며 각 harness의 seq를 유지한다. 기존 fixture 비교 assertion을 그대로 실행하고 성공한 실행에 한해서만 아티팩트를 쓴다. 생성되지 않은 과거 아티팩트로 PASS를 판정하지 않는다.
 
-t12는 독립 재구성 증거가 준비되지 않은 현재 상태에서 MISSING_REVIEW로 FAIL한다. 문서/fixture 자기 검사를 독립 T12로 대체하지 않는다. 독립 검토 evidence 비교 계약이 완성되기 전에는 --t12를 성공 경로로 연결하지 않는다.
+t12는 tests/reference/<scope>.t12-review.json의 독립 재구성을 검사한다. 기본 scope는 foundation-r7이고 --t12-scope project-envelope-a로 통과된 최소 범위를 별도 검사한다. scope 옵션은 --t12와 함께만 사용한다. 증거 누락/형식 오류/문서 변경/차단 결함/시그니처·기대값 불일치는 FAIL이다. PASS 라벨만으로 통과시키지 않는다. 전체 r7은 차단 결함이 남아 있다.
+
+project-envelope-a의 검토 당시 README 원문은 tests/reference/project-envelope-a.review-source.json에 보존한다. 그 원문의 SHA256이 독립 보고서와 일치하고, 현재 README의 D1.project-envelope-a부터 다음 D14.foundation-r7.review 직전까지가 원문과 LF 정규화 기준 동일해야 한다. rules.md 원문 SHA256도 일치해야 한다. 시그니처 3개와 PEA1~PEA12의 기대값/빈 lifecycle trace를 contract fixture와 비교한다. 해당 scope PASS를 전체 r7 PASS로 출력하지 않는다. 원문 snapshot은 검토 증거이며 상시 규칙 문서가 아니다.
+
+## D1.project-envelope-a — 최초 구현용 독립 범위
+
+이 절의 범위는 web/js/project-state.js의 순수 함수 3개뿐이다. 프로젝트 UI/CRUD/파일 쓰기/백업/구독/lifecycle/주문은 실행하지 않는다. r7 전체와 독립된 최소 구현 단위이며 아래 D1~D14를 전부 적용한다. 독립 T12 결과와 사용자 진행 승인은 todo.md에 기록한다. 신규 프로젝트 UI까지 완성됐다는 의미가 아니다.
+
+### D2.project-envelope-a.boundary
+
+STATE 위치는 rules.md B4의 web/js/project-state.js다. 다른 모듈 import 0, 전역 I/O·DOM·clock·random 접근 0. ENGINE/ADDON/BRIDGE 파일 변경 0. export는 PROJECT_SCHEMA=7과 아래 함수 3개뿐이다.
+
+### D3.project-envelope-a.types
+
+입력 text는 JSON 문자열이다. workspace는 object이고 schemaVersion=6이며 실제 v6 의미 검증은 주입된 validateWorkspace에게 위임한다. 함수가 root version만으로 전체 v6 유효성을 인정하지 않는다. callback은 동기 (workspaceObject)→boolean이며 true만 합격이다. 함수 내부는 text 파싱/유한수 검사/clone만 수행한다. callback은 clone을 받으므로 callback이 수정해도 반환 workspace는 원문 파싱 결과 그대로다. callback의 오류·false·Promise 반환은 WORKSPACE_INVALID다.
+
+ProjectId는 p 뒤 양의 십진 정수, 앞자리 0 없음, 숫자 부분이 Number.MAX_SAFE_INTEGER 이하인 문자열이다. 오류는 Error 인스턴스, name="ProjectStateError", code와 message 모두 아래 오류 코드 문자열과 같다. 추가 필드는 없다.
+
+### D4.project-envelope-a.envelope
+
+출력 E(W)는 {schemaVersion:7,projectSeq:2,activeProjectId:"p1",projectOrder:["p1"],projects:{p1:{name:"기본 프로젝트",enabled:true,props:{connectionRef:"default",dataEnabled:true,automationEnabled:false},workspace:W}}}. 모든 기본 필드는 명시적으로 저장한다. W의 모든 JSON 키/값/순서 배열/unknown kind·unknown props는 보존한다. JSON object 키 순서는 동일성 판정에서 제외한다. 이 함수는 v5/v7 입력을 자동 이관하지 않는다.
+
+### D5.project-envelope-a.catalog
+
+새 ADDON 등록 없음. validateWorkspace는 기존 v6 검증과 연결할 주입 계약이며 이 범위에서는 가짜 제품 validator를 제공하지 않는다.
+
+### D6.project-envelope-a.api
+
+1. wrapWorkspaceJson(text, validateWorkspace) → envelope (동기): 먼저 text가 string이고 callback이 function인지 검사한다. 아니면 INVALID_ARGUMENT. JSON.parse가 실패하거나 reviver가 비유한 number를 발견하면 INVALID_JSON. 파싱 root가 null/array/non-object 또는 schemaVersion!==6이면 WORKSPACE_VERSION. callback에는 파싱값의 JSON deep clone을 1회 전달한다. callback이 true를 반환하면 원래 파싱값으로 E(W)를 반환한다. callback 오류는 원문을 노출하지 않고 WORKSPACE_INVALID. 입력 string 불변, 반환 root/W/배열은 매 호출마다 별개 객체다.
+2. projectWorkspacePath(projectId) → string (동기): ProjectId 규칙 검사 실패면 INVALID_PROJECT_ID. 성공 문자열은 "projects/"+projectId+"/workspace"다. 추가 경로 인자/임의 segment를 받지 않으며 프로젝트 존재를 검사하지 않는다.
+3. selectProject(root, projectId) → root (동기): root는 사전에 검증한 canonical v7 envelope라는 전제다. 실행 시 root가 non-null non-array object이고 schemaVersion===7이며 projects가 non-null non-array object인지 우선 검사, 실패는 ROOT_INVALID. 그 다음 projectId 규칙, projects의 own property 존재, 대상.enabled===true를 순서대로 검사한다. 오류는 각각 INVALID_PROJECT_ID/PROJECT_NOT_FOUND/PROJECT_DISABLED. 같은 activeProjectId면 원래 root 객체를 그대로 반환한다. 다르면 activeProjectId만 교체한 shallow root copy를 반환한다. projects/projectOrder/내부 W의 identity와 값은 그대로다. 입력 root나 대상 객체를 변경하지 않는다. 전체 root 의미 검증/정규화는 수행하지 않는다.
+
+### D7.project-envelope-a.commands
+
+wrap은 초기 변환만 수행하며 선택은 같은 root desired 명령 경로에 제공할 순수 변환이다. API 연결/저장은 후속 범위다. 세 함수는 ensure/update/remove를 호출하지 않으므로 모든 입력에서 lifecycle trace=[]이고 외부 request/STATE 파일 write=0이다.
+
+### D8.project-envelope-a.equality
+
+새 hash 함수 없음. JSON 결과 비교는 object 키 순서 무시/array 순서 유지/값과 타입 정확 비교다. select의 무변경은 object identity까지 동일해야 한다. wrap의 -0은 JSON number 0과 동일하게 취급한다. Infinity/NaN은 허용하지 않는다.
+
+### D9.project-envelope-a.effective
+
+select는 enabled=true 프로젝트만 선택한다. dataEnabled/automationEnabled 값을 변경하지 않는다. 선택으로 새 계좌 실행 허용을 만들지 않는다.
+
+### D10.project-envelope-a.errors
+
+오류 우선순위는 D6의 검사 순서다. 존재하지 않는 target과 잘못된 root가 동시에 있으면 ROOT_INVALID, target ID가 잘못되면 존재 검사 전에 INVALID_PROJECT_ID다. callback은 version/parse 검사 실패 시 호출 0회, 정상 파싱 v6에서 1회다. Promise callback 결과를 await하지 않는다. callback 반환값은 true 엄격 비교다.
+
+### D11.project-envelope-a.vectors
+
+독립 재구성 기준: W={schemaVersion:6,marker:"keep",opaque:{items:[{kind:"future",visible:false,props:{n:3}}]}}. 테스트의 accept callback은 true, reject callback은 false, mutate callback은 받은 clone의 marker="changed" 후 true다. 테스트 W는 opaque 보존 검사 입력이고 실제 v6 전체 schema fixture라고 주장하지 않는다.
+
+| id | 입력/동작 | 기대 |
+| --- | --- | --- |
+| PEA1 | wrap(JSON.stringify(W),accept) | E(W), callback 1회, lifecycle=[] |
+| PEA2 | wrap(JSON.stringify(W),mutate) | E(W), marker="keep", lifecycle=[] |
+| PEA3 | wrap("{",accept) | INVALID_JSON, callback 0회 |
+| PEA4 | wrap('{"schemaVersion":7}',accept) | WORKSPACE_VERSION, callback 0회 |
+| PEA5 | wrap(JSON.stringify(W),reject) | WORKSPACE_INVALID, callback 1회 |
+| PEA6 | path("p12") / path("p01") / path("p1/x") | "projects/p12/workspace" / INVALID_PROJECT_ID / INVALID_PROJECT_ID |
+| PEA7 | select(E(W),"p1") | root identity 동일, lifecycle=[] |
+| PEA8 | root=E(W)에 p2={name:"두 번째",enabled:true,props:{connectionRef:"default",dataEnabled:true,automationEnabled:false},workspace:W2}, projectSeq=3, projectOrder=["p1","p2"] 추가; select(root,"p2") | 새 root, activeProjectId="p2", projects/order/W identity 동일, 원 root.activeProjectId="p1" |
+| PEA9 | PEA8의 p2.enabled=false; select(root,"p2") | PROJECT_DISABLED |
+| PEA10 | select(E(W),"p9") | PROJECT_NOT_FOUND |
+| PEA11 | wrap('{"schemaVersion":6,"n":1e999}',accept) | INVALID_JSON, callback 0회 |
+| PEA12 | wrap(JSON.stringify(W),()=>Promise.resolve(true)) | WORKSPACE_INVALID, 동기 throw |
+
+PEA8의 W2는 W를 deep clone한 값이다. 실제 canonical fixture 검사는 state/workspace.v6.fixture.json의 전체 내용을 accept로 E(W)에 넣어 v7 fixture와 비교하며 내용 손실 0을 요구한다. fixture 접근은 독립 검토 이후 테스트 실행에서만 한다.
+
+### D12.project-envelope-a.cost
+
+wrap은 JSON byte 수 B에 O(B) 시간/공간, callback 비용은 외부 검증 비용으로 별도다. select는 고정된 v7 root 필드 수에 O(1), 프로젝트 수/ADDON 수와 무관하며 전체 프로젝트 순회 0이다. path는 입력 ID 길이에 O(L). market tick에서 wrap 호출 금지. 재귀 전체 검사는 select에 추가하지 않는다.
+
+### D13.project-envelope-a.files
+
+제품: web/js/project-state.js. 테스트: tests/project-envelope-a.mjs. 기대값: tests/fixtures/project-envelope-a.contract.json. 독립 검토: tests/reference/project-envelope-a.t12-review.json. 명세 signature 정렬 순서는 wrapWorkspaceJson/projectWorkspacePath/selectProject이고 위 D6 문자열을 독립 재구성한다. PROJECT_SCHEMA=7은 constant이므로 signature 목록에서 제외한다.
+
+### D14.project-envelope-a.open
+
+구현 선택 사항 없음. 독립 검토에서 발견된 결함은 이 범위를 수정하고 재검토한다. 검토 전 PASS로 표시하지 않는다. r7 전체의 OPEN은 이 범위 완료와 별개다.
 
 ## D14.foundation-r7.review — 구현 전 남은 승인·검토
 

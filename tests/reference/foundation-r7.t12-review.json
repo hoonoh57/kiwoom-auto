@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "scope": "foundation-r7",
+  "reviewer": {
+    "id": "codex-independent-agent:/root/t12_review:2026-09-06",
+    "independent": true,
+    "method": "Reconstructed contracts from rules.md and README.md only; no product code, tests, fixtures, todo, or implementation output was inspected. This is review evidence, not a rule document or implementation approval."
+  },
+  "readFiles": ["rules.md", "README.md"],
+  "rulesSha256": "cc5d71548f84ede8445ea48ed4019056ea6a8ae31a4578526e8f266e11e0cc6c",
+  "readmeSha256": "b34b301bb317e76c322a7c922e528e2ab1e9572965d2eba21ea4970150634c7f",
+  "verdict": "FAIL",
+  "verdictScope": "Independent design determinism review of foundation-r7; not a product execution result or a comparison against an unread fixture.",
+  "signatures": [
+    "acquire(key, descriptor) -> lease",
+    "release(lease)",
+    "request(key, descriptor, signal) -> result",
+    "observe(key, listener) -> off",
+    "publish(key, event)",
+    "flush(keys)",
+    "append(commandId, record) -> durable receipt",
+    "read(key) -> {value,quality,generation,updatedAt}|null",
+    "encode(operation,args,credential) -> JSON",
+    "classify(frame) -> {type:heartbeat|ack|event|invalid,correlation:string|null,payload:JSON}",
+    "accepts(operation,args,ack) -> boolean",
+    "decode(channel,row) -> {value,quality,missing}",
+    "register(kind, {normalize(raw)->props, ensure(ctx,id,props)->liveHandle, update(ctx,handle,prev,next)->void, remove(ctx,handle)->void})"
+  ],
+  "signatureLimitations": [
+    "These are the maximum literal signature shapes recoverable from D6.foundation-r7.primitives, D6.foundation-r7.resource-types, D5.foundation-r7.wire-profile, and rules.md A2. They are not complete language-level public declarations.",
+    "The README does not determine sync versus async returns, constructors and injected capability types, result/signal/off/receipt types, registration ownership, or exact error propagation.",
+    "read(key) is explicitly introduced in resource-types but absent from the D6 primitives table. No new public project-state, server runtime, command-ingress, or service endpoint signatures are supplied."
+  ],
+  "types": {
+    "ResourceKey": "Nonempty string containing a canonical JSON array; UTF-8 length <=2048 bytes. The exact accepted canonicality and component validation are not specified.",
+    "Descriptor": "{version:1,mode:request|stream,sideEffect:boolean=false,profileId:string,config:JSON object,delivery:ordered|latest,queueLimit:int=10000 [1,10000],byteLimit:int=16777216 [1024,16777216]}; stream sideEffect=true rejected; delivery has no stated default.",
+    "DescriptorHash": "canonicalHash(normalized Descriptor), using D8.v6.canonical-hash, including all descriptor fields.",
+    "Lease": "Opaque nonpersistent identity with visible shape {id:int,key:string}; engine-local monotonically increasing id starts at 1; serialized lookalikes invalid.",
+    "Error": "{code:string,retryable:boolean,message:string,key:string|null}; declared code list excludes several codes used elsewhere in the r7 specification.",
+    "Event": "{key,generation:int,seq:int,receivedAt:int,payload:JSON}; generation per connection attempt, seq starts at 1 in each generation, time from injected monotonic millisecond clock.",
+    "ProtocolProfile": "{id,version:1,transport:http|websocket,endpointRef,credentialRef,openTimeoutMs=15000,ackTimeoutMs=15000,idleTimeoutMs=90000,controlLimit=256,codecId}; id/codecId match [a-zA-Z0-9_.-]{1,64}; timeouts and limit positive integers.",
+    "NormalizedEvent": "{channel,instrument,market,accountAlias,timeText,fields,quality:complete|partial,missing}; exact types and defaults for all fields/channel variants are incomplete.",
+    "ProjectRoot": "{schemaVersion:7,projectSeq,activeProjectId,projectOrder,projects}; projects[id]={name,enabled,props,workspace}; nested workspace schemaVersion=6. No full formal v7 schema or complete validation/repair matrix appears in README.",
+    "JournalRecord": "{version:1,seq,commandId,event:PREPARED|ACKNOWLEDGED|REJECTED|UNKNOWN|RECONCILED,recordedAt,payload}; only PREPARED payload has a complete named field list."
+  },
+  "scenarios": [
+    {
+      "id": "R7-REVIEW-L01",
+      "designIds": ["D7.foundation-r7.flow", "D11.foundation-r7.acceptance"],
+      "inputs": "Initial generic desired set contains registered effective items with ids a, b, c and unchanged valid normalized props.",
+      "expected": {"lifecycleOrder": ["ensure a", "ensure b", "ensure c"], "count": 3, "algorithmIndependentOfN": true},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "Concrete r7 kinds/props and full-reference recorder id encoding are missing, so literal A5 events with propsHash cannot be reconstructed."
+    },
+    {
+      "id": "R7-REVIEW-L02",
+      "designIds": ["D7.foundation-r7.flow", "D11.foundation-r7.acceptance"],
+      "inputs": "Apply exactly the same normalized desired document a second time after successful first application.",
+      "expected": {"lifecycle": [], "newGeneration": 0, "newCommandId": 0},
+      "status": "DETERMINATE_CONSTRAINT"
+    },
+    {
+      "id": "R7-REVIEW-L03",
+      "designIds": ["D7.foundation-r7.flow"],
+      "inputs": "One change-set removes ids a and c, adds ids b and d, and changes only props of live id e.",
+      "expected": {"lifecycleOrder": ["remove c", "remove a", "ensure b", "ensure d", "update e"], "unrelatedItemOperations": 0},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "Exact record ids/propsHash and failure handling between these operations are unspecified."
+    },
+    {
+      "id": "R7-REVIEW-L04",
+      "designIds": ["D4.foundation-r7.persistence", "D8.foundation-r7.keys", "D11.realtime-foundation.persistence"],
+      "inputs": "Start a fresh runtime with a saved valid desired document versus a fresh apply of that same document.",
+      "expected": {"descriptorEquality": true, "firstLifecycleTraceEquality": true, "orderWireTransmissions": 0, "sessionArmed": false},
+      "status": "DETERMINATE_CONSTRAINT"
+    },
+    {
+      "id": "R7-REVIEW-L05",
+      "designIds": ["D3.foundation-r7.model", "D9.foundation-r7.effective", "D11.foundation-r7.acceptance"],
+      "inputs": "Projects A and B remain enabled/dataEnabled; switch activeProjectId A to B to A while their operational subscriptions are unchanged.",
+      "expected": {"operationalReferenceChanges": 0, "settingsAndIdsPreserved": true, "crossProjectDataContamination": 0},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "Visual item changes depend on absent project projection contract; exact ownership after project disable with unresolved orders is not defined."
+    },
+    {
+      "id": "R7-REVIEW-T01",
+      "designIds": ["D6.foundation-r7.resource-types", "D5.foundation-r7.wire-profile"],
+      "inputs": "Acquire identical stream key K and descriptor D twice; connection and all provider replies succeed; release first lease, then second lease.",
+      "expected": {"resourceCount": 1, "distinctLeaseCount": 2, "connectionOrder": ["connect", "LOGIN", "LOGIN success", "REG", "REG success"], "firstReleaseRemove": 0, "lastReleaseRemove": 1},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "Acquire completion point, full transmitted bytes, REG tie-break among keys, and release completion/close timing are not fixed."
+    },
+    {
+      "id": "R7-REVIEW-T02",
+      "designIds": ["D6.foundation-r7.resource-types"],
+      "inputs": "Acquire K,D1 then acquire K,D2 where normalized descriptor hashes differ.",
+      "expected": {"errorCode": "KEY_CONFLICT", "existingResourcePreserved": true, "extraResourceCreation": 0},
+      "status": "DETERMINATE_CONSTRAINT"
+    },
+    {
+      "id": "R7-REVIEW-T03",
+      "designIds": ["D5.foundation-r7.wire-profile", "D7.foundation-r7.flow"],
+      "inputs": "A REG is pending; REAL and PING arrive, then valid same-generation REG ack.",
+      "expected": {"realCompletesControl": false, "pingCompletesControl": false, "heartbeatEcho": "received JSON", "confirmationBeforeAck": false, "confirmationAfterValidAck": true, "readyRequiresReconciliation": true},
+      "status": "DETERMINATE_CONSTRAINT"
+    },
+    {
+      "id": "R7-REVIEW-T04",
+      "designIds": ["D6.foundation-r7.resource-types", "D5.foundation-r7.wire-profile"],
+      "inputs": "Release final lease for K; acquire K again while REMOVE is outstanding; old generation data arrives late.",
+      "expected": {"controlOrder": ["REMOVE", "REMOVE ack", "REG"], "oldTerminationReversed": false, "oldGenerationCompletesNewRequest": false},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "Resource generation versus connection generation is ambiguous; a resource is called new-generation while REMOVE/REG remain on the same provider connection."
+    },
+    {
+      "id": "R7-REVIEW-T05",
+      "designIds": ["D6.foundation-r7.resource-types"],
+      "inputs": "Two callers wait on the same read-only in-flight request; one cancels and the other remains.",
+      "expected": {"underlyingRequestCount": 1, "otherWaiterCancelled": false, "sideEffectRequestsUseThisSharing": false},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "Cancellation result type/timing, pre-aborted signals, and same-key different-descriptor request behavior are unspecified."
+    },
+    {
+      "id": "R7-REVIEW-S01",
+      "designIds": ["D10.foundation-r7.reconciliation", "D7.foundation-r7.flow"],
+      "inputs": "Account snapshot starts after subscription ack; a related account event arrives before snapshot completes and ordering cannot be proven.",
+      "expected": {"readyFromSnapshotAlone": false, "quality": "DEGRADED", "followupReconciliationRequired": true},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "No exact stable-cut criterion, retry schedule, affected-key scope, or READY transition event is specified."
+    },
+    {
+      "id": "R7-REVIEW-S02",
+      "designIds": ["D10.foundation-r7.reconciliation", "D5.foundation-r7.normalized-events"],
+      "inputs": "Receive two identical account execution events with identical source/accountAlias/trading day/orderId/executionId; alternatively receive two trades sharing price/quantity/time but lacking an execution id.",
+      "expected": {"identifiedExecutionDoubleAccumulation": 0, "anonymousTradesDroppedAsDuplicates": 0, "conflictingIdentifiedPayloadSilentlyOverwritten": false},
+      "status": "DETERMINATE_CONSTRAINT"
+    },
+    {
+      "id": "R7-REVIEW-S03",
+      "designIds": ["D10.foundation-r7.reconciliation", "D5.foundation-r7.wire-profile"],
+      "inputs": "Same-generation condition initial response is {A,B}; buffered membership messages are D(B), I(C), I(C).",
+      "expected": {"membershipSet": ["A", "C"], "bufferApplicationOrder": ["D(B)", "I(C)", "I(C)"], "crossGenerationMembershipApplied": false},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "Result array ordering, buffer boundary, and condition resource key are not declared. MembershipSet denotes an unordered set."
+    },
+    {
+      "id": "R7-REVIEW-J01",
+      "designIds": ["D4.foundation-r7.command-journal", "D10.foundation-r7.errors"],
+      "inputs": "Command ingress receives a fresh command; PREPARED append+flush+fsync fails.",
+      "expected": {"errorCode": "IO_ERROR", "wireTransmissions": 0},
+      "status": "DETERMINATE_CONSTRAINT"
+    },
+    {
+      "id": "R7-REVIEW-J02",
+      "designIds": ["D4.foundation-r7.command-journal"],
+      "inputs": "PREPARED is durably written, request sent, response lost; process restarts and the same commandId is submitted again.",
+      "expected": {"status": "UNKNOWN", "secondWireTransmissions": 0, "replayFromDesiredState": false, "similarCandidatesAutoLinked": false},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "Exact UNKNOWN/recovery journal writes, day-boundary duplicate lookup, record return shape, and crash windows are not specified."
+    },
+    {
+      "id": "R7-REVIEW-P01",
+      "designIds": ["D4.foundation-r7.persistence"],
+      "inputs": "Migrate a valid v6 workspace W with no pre-existing backup; all validation and I/O succeed.",
+      "expected": {"schemaVersion": 7, "projectSeq": 2, "activeProjectId": "p1", "projectOrder": ["p1"], "projects.p1.name": "기본 프로젝트", "projects.p1.workspace": "W unchanged", "backupBytes": "original v6 bytes unchanged"},
+      "status": "PARTIAL_RECONSTRUCTION",
+      "unresolved": "Migration does not explicitly state whether enabled/props defaults are serialized; exact v7 JSON key order and byte format are not specified."
+    }
+  ],
+  "mismatches": [
+    {
+      "id": "T12-R7-001", "designId": "D6.foundation-r7.primitives", "severity": "blocking",
+      "message": "Public API is explicitly a proposal. Sync/async behavior, constructor/injection signature, request result/signal, durable receipt, listener errors, reentrancy, and registration entry points are unspecified. resource-types introduces an additional read(key) API not in the primitives catalog.",
+      "classification": ["design defect", "architecture defect:I12"],
+      "resolution": "Publish exact typed API including awaited completion boundaries, errors and constructor dependencies, and align D6/D13 catalogs."
+    },
+    {
+      "id": "T12-R7-002", "designId": "D11.foundation-r7.acceptance", "severity": "blocking",
+      "message": "F01-F12 are outcome constraints rather than concrete input and A5 operation arrays. README names a separate fixture but does not expose its independent literal expectations. Exact r7 trace/hash reconstruction is impossible from README alone.",
+      "classification": ["design defect", "architecture defect:I12"],
+      "resolution": "Define canonical inputs, normalizations, lifecycle records, and separate ordered transport records for each selected scenario; identify full-reference recorder encoding and sequence/reset conventions."
+    },
+    {
+      "id": "T12-R7-003", "designId": "D5.foundation-r7.catalog", "severity": "blocking",
+      "message": "Feature names and wire identifiers do not define registered kind strings, per-kind props schemas/defaults, descriptor mapping, immutable-field updates, capability combinations, or exact lifecycle effects. A single item cannot yet be translated independently into a concrete resource descriptor.",
+      "classification": ["design defect", "architecture defect:I12"],
+      "resolution": "Choose one read-only kind and completely specify its normalize/ensure/update/remove contract before broadening the catalog."
+    },
+    {
+      "id": "T12-R7-004", "designId": "D3.foundation-r7.model", "severity": "blocking",
+      "message": "New operational data/condition/strategy item JSON locations and IDs are absent; project props types/validation and full v7 schema are incomplete. Project add/rename/disable/delete/select/export/import public command signatures, tie-break for active replacement, unknown-field policy, and reference repair/fatal outcomes are unspecified.",
+      "classification": ["design defect", "architecture defect:I12"],
+      "resolution": "Finish D3/D4/D10/D13 for a reduced project-envelope scope and exact serialized migration output, including failed backup/write and imported sequence/reference validation."
+    },
+    {
+      "id": "T12-R7-005", "designId": "D9.foundation-r7.effective", "severity": "blocking",
+      "message": "dataEffective intentionally ignores visible, whereas rules A3 I4 defines generic item effective using visible. This can be represented with distinct projected operational items, but that mapping is not specified. Project disable also retains account monitoring for unresolved orders without specifying the surviving desired owner/reference or its release transition.",
+      "classification": ["design defect", "architecture boundary unresolved:I4/I6/I10"],
+      "resolution": "Specify separate user display fields and generic projected item effective fields; express retained monitoring through an explicit generic owner/capability contract, without feature branches in Bridge or persisted runtime completion. This is not a conclusion that the permanent rule itself needs changing."
+    },
+    {
+      "id": "T12-R7-006", "designId": "D8.foundation-r7.keys", "severity": "blocking",
+      "message": "Quote/trade key includes timeframe even though two timeframes can share the same raw wire subscription. Logical projection key versus underlying subscription key is not distinguished. Conditions key and connection-session key are missing. Equal logical keys with different delivery/queue limits produce KEY_CONFLICT, but consumer negotiation/ownership is not defined.",
+      "classification": ["design defect", "architecture boundary unresolved:I1/I2/I8"],
+      "resolution": "Define layered key functions and sharing/refcount boundaries; provide two symbols, two timeframes, two projects and one shared account trace with one consumer removed."
+    },
+    {
+      "id": "T12-R7-007", "designId": "D10.foundation-r7.reconciliation", "severity": "blocking",
+      "message": "Stable account reconciliation, sourceFresh, accountReady, unresolvedCommand and overloaded scopes are not executable predicates. The reducer contract is absent, and ownership of event buffering/requery orchestration is not defined. A conservative DEGRADED policy is recoverable, but exact READY transitions and multi-symbol failure isolation are not.",
+      "classification": ["design defect", "architecture boundary unresolved:A1.2/I2/I12"],
+      "resolution": "Define pure per-item reducer input/output and generic orchestration capability; fix scoped readiness predicates and exact snapshot/event/requery traces without claiming linearizable broker replay."
+    },
+    {
+      "id": "T12-R7-008", "designId": "D5.foundation-r7.wire-profile", "severity": "blocking",
+      "message": "Profile codec accepts JSON but no HTTP headers/path/status contract or inbound event routing/subscription identity contract is given. Connection generation and release/reacquire resource generation are not separated. Serialized control registration order, timeout race tie-break, reconnect backoff reset, and auth refresh single-flight/error transitions are incomplete.",
+      "classification": ["design defect", "architecture defect:I12"],
+      "resolution": "Specify session/resource generations, injected scheduler ordering, routing and HTTP envelope, and exact success/failure control traces."
+    },
+    {
+      "id": "T12-R7-009", "designId": "D6.foundation-r7.resource-types", "severity": "blocking",
+      "message": "Declared Error code enum excludes UNSUPPORTED_MARKET, UNSUPPORTED_INSTRUMENT and CONFLICT used in D5/catalog/normalized-events and D4/command-journal. CanonicalValueError versus INVALID_INPUT layering, retryable values and propagation are unspecified.",
+      "classification": ["design defect", "architecture defect:I12"],
+      "resolution": "Separate public domain errors from primitive errors with typed conversion rules, or publish one consistent enum and boundary table."
+    },
+    {
+      "id": "T12-R7-010", "designId": "D4.foundation-r7.command-journal", "severity": "blocking",
+      "message": "Journal path remains a proposal; non-PREPARED payloads/receipt/result shapes and valid transition matrix are absent. UUID source/version, command request hash, atomic duplicate ingress, cross-day dedupe/index/recovery, concurrent same-ID submission, and fsync/crash handling are not deterministic. Retention is expressly deferred before trading.",
+      "classification": ["design defect", "architecture defect:I12"],
+      "resolution": "Keep side-effect commands outside the minimum scope; specify generic durable append and command ingress separately, then provide cross-midnight, concurrent retry, partial-line, and crash-point traces."
+    },
+    {
+      "id": "T12-R7-011", "designId": "D5.foundation-r7.normalized-events", "severity": "blocking",
+      "message": "quantity is nonnegative but tradeQty explicitly uses abs(15); accepted signed quantity conversion is not fully stated. HHmmss validation/date source, decimal digit limits, required versus optional missing lists, malformed optional field handling, depth field object layout, and text enum validation are incomplete. Account external-field checks lack a pure injected context signature.",
+      "classification": ["design defect", "architecture defect:I12"],
+      "resolution": "Publish complete per-channel typed output and valid/invalid/missing vectors, including negative signed trade volume, absent time, malformed optional values and credential-backed account verification."
+    },
+    {
+      "id": "T12-R7-012", "designId": "D12.foundation-r7.budgets", "severity": "blocking",
+      "message": "Per-resource versus per-session versus total queue/byte limits and encoded-byte accounting are not fixed. Ordered overflow behavior and snapshot-buffer limits are missing. Sorted dirty-key flush is O(K log K) with ordinary sorting whereas stated delta complexity is O(K+E_changed); initial sorting similarly needs reconciliation with O(N+E).",
+      "classification": ["design defect", "architecture boundary unresolved:I9/I12"],
+      "resolution": "Fix accounting scope, overflow outcomes, scheduler limits and an achievable complexity contract/data structure. Preserve no unrelated-item scans and distinguish workload budgets from passing evidence."
+    },
+    {
+      "id": "T12-R7-013", "designId": "D7.foundation-r7.flow", "severity": "blocking",
+      "message": "r7 sorts IDs by code point, while retained v6 D11 requires idNum ordering for f1..f1000. No explicit per-runtime scope or override states which applies to nested v6 visual lifecycle. Add-on failure mid change-set, partial success, rollback/retry, kind replacement and descriptor-key replacement traces are also unspecified.",
+      "classification": ["design defect", "architecture defect:I12"],
+      "resolution": "Separate existing v6 ordering from r7 server ordering explicitly and define exact generic failure/replacement semantics. Include f2/f10 and multiple project-local f1 references in examples."
+    },
+    {
+      "id": "T12-R7-014", "designId": "D13.foundation-r7.sequence", "severity": "blocking",
+      "message": "Sequence phases do not define concrete module/public API boundaries or service Request/Response schemas. New endpoints, browser/server delta delivery, authorization context, project-qualified ingress and journal command ownership remain unassigned. Independent implementers would choose different observable contracts and potentially duplicate lifecycle paths.",
+      "classification": ["design defect", "architecture boundary unresolved:A9/I6/I12"],
+      "resolution": "Publish D13 file responsibility and API tables for the selected small scope, keeping transport/session generic and domain normalization per registered item."
+    }
+  ],
+  "completedSmallScopes": [
+    {
+      "scope": "Boundary placement review",
+      "result": "MATCH",
+      "designIds": ["D2.foundation-r7.boundary"],
+      "evidence": "Declared ENGINE/ADDON/BRIDGE/STATE locations and responsibilities align with current rules.md B1-B5/B13/B18. This verifies the declared placement, not all cross-axis execution contracts."
+    },
+    {
+      "scope": "Deterministic safety and idempotence constraints",
+      "result": "RECONSTRUCTED",
+      "designIds": ["D4.foundation-r7.command-journal", "D6.foundation-r7.resource-types", "D11.foundation-r7.acceptance"],
+      "evidence": "Same desired second apply is empty; key/hash conflict preserves old resource; failed durable preparation sends no command; restored desired never replays orders; stale generation never completes a new request. These are reviewable constraints, not a complete implementation-ready API slice."
+    },
+    {
+      "scope": "Existing v6 check-runner reporting contract",
+      "result": "SELF_CONTAINED_LIMITED_CONTRACT",
+      "designIds": ["D11.v6.check-runner"],
+      "evidence": "CLI selection/order, exit codes, log location, no unexecuted gate PASS and fail-closed T12 are explicitly stated. Existing implementation/tests were not read; no execution PASS is asserted. A positive T12 comparator contract is expressly not complete."
+    }
+  ],
+  "recommendedMinimumScope": {
+    "first": "Complete design-only r7 project-envelope serialization/migration and pure project commands, leaving new trading/data item types out until their own contract is complete.",
+    "requiredBeforeImplementation": [
+      "Exact v7 formal schema, defaults/unknown-field policy, serialized outputs and invalid-input outcomes.",
+      "Public project-state function signatures and project-qualified command/response shapes.",
+      "Concrete migration and A-to-B-to-A expectations preserving nested v6; explicit active-project and resource projection scope.",
+      "Independent T12 for that reduced scope followed by applicable user APPROVED gate."
+    ],
+    "next": "A separate generic key/lease/read-only request primitive slice with full typed signatures, injected fake I/O and exact share/cancel/release/error traces; then one read-only provider kind.",
+    "defer": ["Live side-effect order transport", "Full account READY automation", "Conditions orchestration", "Whole-system performance/ARCH PASS"],
+    "currentImplementationReadyFoundationR7Slice": "None certified by this review. Completed constraints and boundary placement must not be promoted to full T12 PASS."
+  }
+}

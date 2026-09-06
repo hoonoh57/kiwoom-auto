@@ -1,5 +1,6 @@
 """Design: D11.v6.check-runner. Run only requested verification gates."""
 import argparse
+import hashlib
 import json
 import os
 import pathlib
@@ -123,6 +124,7 @@ JS_TESTS = (
     "desk-bridge-v6.mjs", "deskspec-v6.mjs", "frame-v6.mjs",
     "indicator-sync-v6.mjs", "multisymbol-candles.mjs", "state-projection-v6.mjs",
     "ui-slots-v6.mjs", "workspace-tools-v6.mjs",
+    "project-envelope-a.mjs",
 )
 
 
@@ -148,12 +150,82 @@ def run_child(gate, label, command, log, env=None):
 
 # Design: D11.v6.check-runner
 
+def review_gate(log, scope="foundation-r7"):
+    path = R / f"tests/reference/{scope}.t12-review.json"
+    where = str(path.relative_to(R))
+    if not path.is_file():
+        add("t12", "MISSING_REVIEW", "independent design reconstruction and comparison", "not performed", where)
+        return
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+        assert report["schemaVersion"] == 1 and report["scope"] == scope
+        assert isinstance(report["reviewer"]["id"], str) and report["reviewer"]["id"]
+        assert report["reviewer"]["independent"] is True
+        assert sorted(report["readFiles"]) == ["README.md", "rules.md"]
+        assert report["verdict"] in ("PASS", "FAIL")
+        assert isinstance(report["signatures"], list) and report["signatures"]
+        assert isinstance(report["scenarios"], list) and report["scenarios"]
+        assert isinstance(report["mismatches"], list)
+        source_pairs = [("rules.md", "rulesSha256")]
+        if scope == "project-envelope-a":
+            source = json.loads((R / "tests/reference/project-envelope-a.review-source.json").read_text(encoding="utf-8"))["readme"]
+            assert hashlib.sha256(source.encode("utf-8")).hexdigest() == report["readmeSha256"]
+            def section(text):
+                text = text.replace("\r\n", "\n")
+                start = text.index("## D1.project-envelope-a —")
+                end = text.index("\n## D14.foundation-r7.review", start)
+                return text[start:end]
+            if section(source) != section((R / "README.md").read_text(encoding="utf-8")):
+                add("t12", "STALE_REVIEW", "unchanged reviewed scope", "scope changed", where)
+        else:
+            source_pairs.append(("README.md", "readmeSha256"))
+        for name, field in source_pairs:
+            if hashlib.sha256((R / name).read_bytes()).hexdigest() != report[field]:
+                add("t12", "STALE_REVIEW", "review of current " + name, "source changed", where)
+        if fail and fail[-1][0] == "t12":
+            return
+        blockers = [row for row in report["mismatches"] if row["severity"] == "blocking"]
+        log.write(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+        if report["verdict"] == "FAIL" or blockers:
+            ids = ",".join(str(row["id"]) for row in blockers)
+            add("t12", "DESIGN_MISMATCH", "zero blocking independent findings", f"{len(blockers)} blocking: {ids}", where)
+            return
+        if scope == "project-envelope-a":
+            expected = json.loads((R / "tests/fixtures/project-envelope-a.contract.json").read_text(encoding="utf-8"))
+            signatures = [x.removesuffix(" (sync)") for x in report["signatures"]]
+            assert signatures == expected["publicSignatures"]
+            scenarios = {x["id"]: x["expected"] for x in report["scenarios"]}
+            assert len(scenarios) == len(report["scenarios"]) == len(expected["reviewAssertions"]) == 12
+            for ident, values in expected["reviewAssertions"].items():
+                assert all(scenarios[ident][key] == value for key, value in values.items())
+            return
+        expected = json.loads((R / "tests/fixtures/foundation-r7.contract.json").read_text(encoding="utf-8"))
+        # Positive comparison requires literal signatures and scenarios, not a PASS label.
+        if not expected.get("publicSignatures"):
+            add("t12", "INCOMPLETE_CONTRACT", "literal publicSignatures", "missing", "tests/fixtures/foundation-r7.contract.json")
+            return
+        if report["signatures"] != expected["publicSignatures"]:
+            add("t12", "SIGNATURES", "independent signatures equal design contract", "mismatch", where)
+        comparison = [{"id": c["id"], "inputs": c["inputs"], "expected": {
+            "lifecycle": c["lifecycle"], "engine": c["engine"], "assertions": c["assertions"]}}
+            for c in expected["cases"]]
+        if report["scenarios"] != comparison:
+            add("t12", "SCENARIOS", "independent scenarios equal design contract", "mismatch", where)
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError, AssertionError):
+        add("t12", "INVALID_REVIEW", "complete independent review evidence", "invalid or unreadable", where)
+
+
+# Design: D11.v6.check-runner
+
 def main(argv=None):
     fail.clear()
     parser = argparse.ArgumentParser(description=__doc__)
     for gate in ("static", "semantic", "recorder", "t12"):
         parser.add_argument("--" + gate, action="store_true")
+    parser.add_argument("--t12-scope", choices=("foundation-r7", "project-envelope-a"), default="foundation-r7")
     args = parser.parse_args(argv)
+    if args.t12_scope != "foundation-r7" and not args.t12:
+        parser.error("--t12-scope requires --t12")
     chosen = [g for g in ("static", "semantic", "recorder", "t12") if getattr(args, g)] or ["static"]
     artifacts = R / "artifacts"
     try:
@@ -183,10 +255,11 @@ def main(argv=None):
                         except (OSError, ValueError, KeyError, TypeError, AssertionError):
                             add(gate, "TRACE", "fresh recorder artifact", "missing or invalid", str(target))
                 else:
-                    add(gate, "MISSING_REVIEW", "independent design reconstruction and comparison", "not performed", "README.md D14.foundation-r7.review")
+                    review_gate(log, args.t12_scope)
                 if len(fail) == before:
-                    print(f"[PASS] {gate}")
-                    log.write(f"[PASS] {gate}\n")
+                    label = f"{gate} ({args.t12_scope})" if gate == "t12" and args.t12_scope != "foundation-r7" else gate
+                    print(f"[PASS] {label}")
+                    log.write(f"[PASS] {label}\n")
                 else:
                     for item in fail[before:]:
                         log.write(repr(item) + "\n")

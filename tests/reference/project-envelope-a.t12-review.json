@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "scope": "project-envelope-a",
+  "reviewer": {
+    "id": "codex-independent-agent:/root/t12_review:2026-09-06:project-envelope-a",
+    "independent": true,
+    "method": "Read the new D1-D14.project-envelope-a clauses and previously read rules.md. No product code, fixture, test, todo or implementation output inspected. Independently reconstructed public calls and PEA1-PEA12 expectations."
+  },
+  "readFiles": ["rules.md", "README.md"],
+  "readmeSha256": "65ed2758ba6e0f19f6046a800d08f0bf27cf5067204de970eea453ac0c9ddb61",
+  "rulesSha256": "cc5d71548f84ede8445ea48ed4019056ea6a8ae31a4578526e8f266e11e0cc6c",
+  "verdict": "PASS",
+  "verdictScope": "Design determinism of the three project-envelope-a pure functions under their documented preconditions only. Does not approve implementation, certify execution, pass the complete foundation-r7 design, or verify an unread fixture.",
+  "signatures": [
+    "wrapWorkspaceJson(text, validateWorkspace) -> envelope (sync)",
+    "projectWorkspacePath(projectId) -> string (sync)",
+    "selectProject(root, projectId) -> root (sync)"
+  ],
+  "types": {
+    "text": "JavaScript string parsed with JSON.parse and finite-number validation.",
+    "validateWorkspace": "Synchronous function taking an independent JSON deep clone of the parsed workspace. Only strict true accepts. Throw, false, all other values and Promise returns synchronously fail with WORKSPACE_INVALID.",
+    "ProjectId": "String p followed by a positive decimal integer with no leading zero and numeric part <= Number.MAX_SAFE_INTEGER.",
+    "envelope": "E(W), specified completely in definitions below; a fresh root and fresh parsed workspace graph per successful call.",
+    "root": "Previously validated canonical v7 envelope. select additionally checks the specified root/projects object shape, version and target checks in order; it does not perform general v7 validation.",
+    "error": "Error instance with name ProjectStateError and code/message equal to the exact prescribed error code. No extra domain payload.",
+    "exports": ["PROJECT_SCHEMA = 7", "wrapWorkspaceJson", "projectWorkspacePath", "selectProject"]
+  },
+  "definitions": {
+    "W": {"schemaVersion":6,"marker":"keep","opaque":{"items":[{"kind":"future","visible":false,"props":{"n":3}}]}},
+    "W2": "Independent deep clone of W, equal by JSON value.",
+    "E(W)": {
+      "schemaVersion":7,
+      "projectSeq":2,
+      "activeProjectId":"p1",
+      "projectOrder":["p1"],
+      "projects": {
+        "p1": {
+          "name":"기본 프로젝트",
+          "enabled":true,
+          "props":{"connectionRef":"default","dataEnabled":true,"automationEnabled":false},
+          "workspace":{"schemaVersion":6,"marker":"keep","opaque":{"items":[{"kind":"future","visible":false,"props":{"n":3}}]}}
+        }
+      }
+    },
+    "R2": "E(W) with projectSeq=3, projectOrder=[p1,p2], and own projects.p2={name:두 번째,enabled:true,props:{connectionRef:default,dataEnabled:true,automationEnabled:false},workspace:W2}; activeProjectId remains p1.",
+    "accept": "Return true.",
+    "reject": "Return false.",
+    "mutate": "Set callback argument marker to changed and return true.",
+    "comparison": "Object key order ignored, array order preserved, values and types exact; -0 compares as JSON number 0. Identity assertions are additional and explicit."
+  },
+  "scenarios": [
+    {
+      "id":"PEA1",
+      "inputs":{"call":"wrapWorkspaceJson(JSON.stringify(W), accept)"},
+      "expected":{"value":"E(W)","callbackCalls":1,"freshRootAndWorkspaceGraph":true,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA2",
+      "inputs":{"call":"wrapWorkspaceJson(JSON.stringify(W), mutate)"},
+      "expected":{"value":"E(W)","workspaceMarker":"keep","callbackCalls":1,"callbackCloneMarker":"changed","lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA3",
+      "inputs":{"call":"wrapWorkspaceJson(text, accept)","text":"{"},
+      "expected":{"throwsSynchronously":"INVALID_JSON","callbackCalls":0,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA4",
+      "inputs":{"call":"wrapWorkspaceJson(text, accept)","text":"{\"schemaVersion\":7}"},
+      "expected":{"throwsSynchronously":"WORKSPACE_VERSION","callbackCalls":0,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA5",
+      "inputs":{"call":"wrapWorkspaceJson(JSON.stringify(W), reject)"},
+      "expected":{"throwsSynchronously":"WORKSPACE_INVALID","callbackCalls":1,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA6",
+      "inputs":{"calls":["projectWorkspacePath(p12)","projectWorkspacePath(p01)","projectWorkspacePath(p1/x)"]},
+      "expected":{"results":[{"value":"projects/p12/workspace"},{"throwsSynchronously":"INVALID_PROJECT_ID"},{"throwsSynchronously":"INVALID_PROJECT_ID"}],"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA7",
+      "inputs":{"call":"selectProject(root, p1)","root":"E(W)"},
+      "expected":{"returnIsInputRoot":true,"activeProjectId":"p1","inputUnchanged":true,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA8",
+      "inputs":{"call":"selectProject(root, p2)","root":"R2"},
+      "expected":{"returnIsInputRoot":false,"activeProjectId":"p2","originalActiveProjectId":"p1","preservedIdentities":["projects","projectOrder","projects.p1.workspace","projects.p2.workspace"],"onlyChangedRootField":"activeProjectId","inputUnchanged":true,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA9",
+      "inputs":{"call":"selectProject(root, p2)","root":"R2 with projects.p2.enabled=false"},
+      "expected":{"throwsSynchronously":"PROJECT_DISABLED","inputUnchanged":true,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA10",
+      "inputs":{"call":"selectProject(root, p9)","root":"E(W)"},
+      "expected":{"throwsSynchronously":"PROJECT_NOT_FOUND","inputUnchanged":true,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA11",
+      "inputs":{"call":"wrapWorkspaceJson(text, accept)","text":"{\"schemaVersion\":6,\"n\":1e999}"},
+      "expected":{"throwsSynchronously":"INVALID_JSON","callbackCalls":0,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    },
+    {
+      "id":"PEA12",
+      "inputs":{"call":"wrapWorkspaceJson(JSON.stringify(W), () => Promise.resolve(true))"},
+      "expected":{"throwsSynchronously":"WORKSPACE_INVALID","callbackCalls":1,"awaitCallbackResult":false,"lifecycle":[]},
+      "designId":"D11.project-envelope-a.vectors"
+    }
+  ],
+  "additionalReconstructedBoundaries": [
+    {"input":"wrapWorkspaceJson with non-string text or non-function validator, including both invalid","expected":"INVALID_ARGUMENT before parsing; callback calls 0"},
+    {"input":"parseable null, array, primitive, or object whose schemaVersion is not numeric 6","expected":"WORKSPACE_VERSION; callback calls 0"},
+    {"input":"validator throws an Error containing sensitive text","expected":"WORKSPACE_INVALID with no original callback error text"},
+    {"input":"validator returns 1, a truthy object, undefined or a Promise","expected":"WORKSPACE_INVALID synchronously; strict true is the sole acceptance result"},
+    {"input":"path p0, p01, p-1, p1/x, non-string, p9007199254740992","expected":"INVALID_PROJECT_ID"},
+    {"input":"path p9007199254740991","expected":"projects/p9007199254740991/workspace"},
+    {"input":"select invalid root plus invalid/missing project ID","expected":"ROOT_INVALID takes priority"},
+    {"input":"select valid root plus invalid project ID","expected":"INVALID_PROJECT_ID before own-property lookup"},
+    {"input":"select inherited rather than own project ID under the specified shallow boundary checks","expected":"PROJECT_NOT_FOUND"},
+    {"input":"same valid text wrapped in two calls","expected":"equal JSON values but distinct roots and workspace arrays/objects"}
+  ],
+  "mismatches": [
+    {
+      "id":"PEA-REVIEW-N01",
+      "designId":"D7.project-envelope-a.commands",
+      "severity":"nonblocking",
+      "message":"The phrase all inputs produce zero external requests/file writes must be understood as operations owned by these functions. An injected validator can itself perform arbitrary external actions; the function cannot prevent that merely by supplying a clone.",
+      "recommendation":"Clarify that lifecycle/I/O zero guarantees cover module-owned behavior and that side effects of caller-supplied validation are outside this module contract. PEA callbacks are side-effect-free apart from mutation of the isolated clone, so the selected expectations remain deterministic."
+    }
+  ],
+  "boundaryAssessment": {
+    "fourAxes":"STATE-only placement agrees with B4. No new Engine, Add-on or Bridge behavior is introduced; direct imports and ambient I/O are forbidden.",
+    "persistence":"Only an in-memory envelope value is produced. File migration/backups, generic CRUD integration, v5 conversion and validation implementation remain outside this slice.",
+    "multiProject":"Selection changes one root field and preserves project/workspace identity. It does not implement operational subscription switching or multi-symbol synchronization.",
+    "preconditionLimit":"select accepts a previously canonical root; adversarial getters/proxies, invalid project entry structures and whole-envelope repair are not a hidden validation requirement.",
+    "performance":"Wrap visits input and clones once, with external validator cost excluded. Selection touches fixed root fields and one target; it need not scan projects/items."
+  },
+  "approvalAndEvidenceLimits": [
+    "This scoped T12 PASS does not change the prior foundation-r7 FAIL report.",
+    "No product execution, exact fixture comparison or repository-wide architecture result was produced.",
+    "User implementation approval remains the parent workflow's responsibility; this review does not infer approval from design determinism.",
+    "Any later public behavior beyond these three functions and PROJECT_SCHEMA requires its own design and approval gate."
+  ]
+}

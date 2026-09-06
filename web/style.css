@@ -127,3 +127,6 @@ footer{flex:0 0 auto;display:flex;gap:10px;align-items:center;border-top:1px sol
 .nav-rows{max-height:60vh;overflow:auto}.nav-row{display:flex;gap:6px;align-items:center;margin:8px 0}.nav-row span{flex:1;min-width:160px}.mbox{max-height:85vh;overflow:auto}
 
 .vd-count{font-size:10px;opacity:.7;margin-left:5px}.vd-error{color:#ff6b6b;margin-left:3px}.recovery{padding:24px}.recovery button{margin:5px}
+
+/* Design: D5.v6.indicator-sync */
+.cf-sync{font-size:11px;white-space:nowrap;padding:2px 7px;border:1px solid #526077;border-radius:4px}.cf-sync[aria-pressed=true]{background:#24457b;color:#fff;border-color:#8bb5ff}

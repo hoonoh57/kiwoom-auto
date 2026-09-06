@@ -741,3 +741,23 @@ L7 stale ID 및 legacy 필드 누락: null로 정규화. 명시적으로 등록�
 
 사용자 요청: NXT 08:00/KRX 09:00 봉이 UTC 자정으로 보이는 표시 오류 수정. 원본 UTC epoch와 저장 캐시는 유지한다. chart Add-on에서 Asia/Seoul, hourCycle=h23 포맷터를 만들어 기존 generic chart.applyOptions로 전달한다. ENGINE/BRIDGE는 거래소·한국시간 의미를 소유하지 않는다. intraday 시간축은 HH:mm(틱은 HH:mm:ss), 일/주/월은 한국 날짜를 표시하며 crosshair는 한국 날짜·시간을 표시한다. timeframe 변경 때 포맷터를 갱신한다. 세션 필터·거래소 데이터 소스는 바꾸지 않는다.
 D11 검증: 2026-09-03T23:00:00Z → 09-04 08:00, 2026-09-04T00:00:00Z → 09-04 09:00; 한국 자정은 00:00이며 24:00이 아님. epoch 불변, 브라우저 timezone과 무관한 결과.
+
+
+## D3.v6.indicator-sync — 종목별 지표와 동기화
+
+사용자 승인: 선택 종목의 지표 설정을 다른 종목에도 적용하고 각 종목 데이터로 각각 계산하는 방식을 `예`로 확정했다. 4축 경계는 유지한다.
+chart body.indicatorSync={enabled:boolean,sourceId:string|null}, 기본 OFF/null. ON 시 현재 selectedItemId를 기준으로 고정한다. 선택 변경만으로 기준을 바꾸지 않는다. OFF는 현재 복사된 설정을 유지하며 이후 독립 편집한다. 새 지표는 선택 종목에 targetItemId로 귀속한다. 기존 targetItemId 없는 지표는 첫 ON 때 선택 종목에 귀속한다.
+지표 props.targetItemId는 같은 form의 selectable item ID, props.syncOriginId는 동기화 기준 지표 ID이다. body.itemSeq는 지표 복사 시 증가하는 양의 정수이며 기존 ID 숫자 최댓값+1 이상이다. id는 삭제 후 재사용하지 않는다.
+
+## D7.v6.indicator-sync — 순수 STATE 명령
+
+ON 명령은 기준 종목의 지표 집합을 다른 selectable 종목에 복사하는 단일 body patch다. 대상 종목의 기존 지표 설정은 기준 집합으로 맞춘다. 같은 origin/target의 기존 ID는 유지한다. 기준 지표 추가/수정/삭제/ON-OFF는 동기화 ON 동안 같은 명령에서 전파한다. 기준 종목 삭제는 동기화를 OFF하고 그 종목의 지표도 제거한다. 숨김/비활성 캔들은 지표도 렌더하지 않지만 설정은 보존한다. 기준을 선택하지 않으면 ON은 거부한다.
+render projection은 저장된 지표 targetItemId를 effective code/tf/pane/scale로 해석한 generic raw item을 생성한다. 저장 값과 handle을 섞지 않는다. ADDON은 단일 지표의 전달받은 code/tf 데이터만 계산한다. BRIDGE의 kind 분기·전체 복원·ENGINE의 종목 지식은 추가하지 않는다.
+
+## D5.v6.indicator-sync — ADDON 등록 계약
+
+MA/거래량/MACD/RSI/누적거래대금은 meta.indicator=true로 등록한다. 지표별 데이터 키는 code|tf이고 version은 그 키의 barsHash다. MA는 대상 캔들과 같은 pane/가격축, 별도 지표는 targetItemId:기본pane의 독립 pane에 놓는다. 비교 표시 캔들의 MA는 같은 percent/indexed100 기준으로 변환한다. 각 지표 handle은 자기 series만 소유한다. 다른 종목 데이터 변화는 해당 종목 지표만 update한다.
+
+## D11.v6.indicator-sync — 검증
+
+S1 ON: 기준 지표 설정은 동일, 대상별 dataKey는 서로 다름. S2 길이 변경: 기준/복사 지표만 변경, 캔들 lifecycle 0. S3 OFF 후 기준 편집: 다른 종목 지표 변화 0. S4 동일 ON 재적용: ID·seq·patch 변화 0. S5 캔들 삭제/숨김: 그 대상 지표만 제거/숨김, 다른 대상 handle 보존. S6 저장 재적용은 같은 정상 diff 경로, 동기화 전용 BRIDGE/ENGINE 변경 0. S7 종목별 다른 봉에서 계산한 MA 값이 서로 다름.

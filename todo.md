@@ -25,6 +25,15 @@
 
 ## 할 일
 
+### 선택 종목 기준 지표 동기화 토글 — 구현 완료
+
+- [x] 사용자 `예`로 A안(설정 복사·각 종목 데이터로 개별 계산) 승인. D3/D5/D7/D11.v6.indicator-sync 계약을 먼저 기록했다.
+- [x] 지표 동기화 ON/OFF, targetItemId 귀속, 기준 지표 추가·수정·삭제 전파, OFF 독립 편집 구현.
+- [x] MA/거래량/MACD/RSI/누적거래대금은 단일 지표 ADDON으로 자기 dataKey만 계산. MA는 대상 캔들 pane/축, 별도 지표는 종목별 pane.
+- [x] tests/indicator-sync-v6.mjs: 종목별 다른 MA값, 동일 적용 idempotence, OFF locality, 대상 숨김/삭제, 기준 전환 및 재사용 ID 유지 검증 PASS.
+- [x] ENGINE/BRIDGE 제품 코드 변경 0. 전체 기존 JS/Python 검사 통과.
+- [ ] 실제 브라우저에서 지표 동기화 토글·패널 표시 확인. 서버 STATE를 검증용으로 변경하지 않았다.
+
 ### 선행 구현 — 종목 레전드 선택
 
 - [x] 사용자 `진행` 승인에 따라 D3/D5/D7/D11.v6.legend-selection 계약을 코드보다 먼저 기록했다.

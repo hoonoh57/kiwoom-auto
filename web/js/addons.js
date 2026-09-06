@@ -227,7 +227,7 @@ registry.set('candles', {
 });
 
 registry.set('ma', {
-  meta: { label: '이동평균', pane: 'main', paneH: 95, auto: true, schema: [
+  meta: { indicator: true, label: '이동평균', pane: 'main', paneH: 95, auto: true, schema: [
     { k: 'len', t: 'int', label: '기간', min: 2, max: 400, def: 20 },
     { k: 'color', t: 'color', label: '색', def: '#7fb2f0' },
     { k: 'width', t: 'int', label: '굵기', min: 1, max: 4, def: 1 },
@@ -251,7 +251,7 @@ registry.set('ma', {
 });
 
 registry.set('volume', {
-  meta: { label: '거래량', pane: 'vol', paneH: 95, auto: true, unique: true, schema: [] },
+  meta: { indicator: true, label: '거래량', pane: 'vol', paneH: 95, auto: true, unique: true, schema: [] },
   defaults: () => ({}),
   normalize: () => ({}),
   ensure(ctx, p, pane) {
@@ -265,7 +265,7 @@ registry.set('volume', {
 });
 
 registry.set('macd', {
-  meta: { label: 'MACD', pane: 'macd', paneH: 95, auto: true, schema: [
+  meta: { indicator: true, label: 'MACD', pane: 'macd', paneH: 95, auto: true, schema: [
     { k: 'fast', t: 'int', label: '단기', min: 2, max: 100, def: 12 },
     { k: 'slow', t: 'int', label: '장기', min: 3, max: 200, def: 26 },
     { k: 'signal', t: 'int', label: '시그널', min: 2, max: 100, def: 9 },
@@ -304,7 +304,7 @@ registry.set('macd', {
 });
 
 registry.set('rsi', {
-  meta: { label: 'RSI', pane: 'rsi', paneH: 95, auto: true, schema: [
+  meta: { indicator: true, label: 'RSI', pane: 'rsi', paneH: 95, auto: true, schema: [
     { k: 'len', t: 'int', label: '기간', min: 2, max: 100, def: 14 },
     { k: 'upper', t: 'int', label: '과매수', min: 50, max: 99, def: 70 },
     { k: 'lower', t: 'int', label: '과매도', min: 1, max: 50, def: 30 },
@@ -340,7 +340,7 @@ registry.set('rsi', {
 });
 
 registry.set('amount', {
-  meta: { label: '누적거래대금', pane: 'amt', paneH: 95, auto: true, schema: [
+  meta: { indicator: true, label: '누적거래대금', pane: 'amt', paneH: 95, auto: true, schema: [
     { k: 'color', t: 'color', label: '색', def: '#4a9d8f' },
   ] },
   defaults: () => ({ color: '#4a9d8f' }),
@@ -382,8 +382,36 @@ registry.set('signals', {
   },
 });
 
+// Design: D5.v6.indicator-sync — one indicator receives only its resolved source data.
+function bindIndicator(impl) {
+  if (!impl.meta.indicator) return impl;
+  const normalize = impl.normalize, ensure = impl.ensure, update = impl.update;
+  const summary = impl.meta.summary;
+  impl.meta.summary = it => `${it.props.targetItemId || '상단'} · ${summary ? summary(it) : impl.meta.label}`;
+  impl.normalize = (it, x) => ({ ...normalize(it, x),
+    ...(it.props.dataKey ? { dataKey: it.props.dataKey, paneId: it.props.paneId,
+      scaleId: it.props.scaleId, compareMode: it.props.compareMode || 'price',
+      baseTime: it.props.baseTime ?? null, baseValue: it.props.baseValue ?? null } : {}) });
+  impl.version = (ctx,p) => p.dataKey ? (ctx.dataFor(p.dataKey)?.barsHash || '0') : ctx.barsHash;
+  const context = (ctx,p) => {
+    if (!p.dataKey) return ctx;
+    const data = ctx.dataFor(p.dataKey) || { bars: [], barsHash: '0' };
+    const bars = data.bars.length && p.compareMode !== 'price' ? candleData(data,p,ctx.itemId).bars : data.bars;
+    return { ...ctx, ...data, bars,
+      barsHash: JSON.stringify([p.dataKey,data.barsHash,p.compareMode,p.baseTime,p.baseValue]),
+      engine: { ...ctx.engine, addSeries: (kind,options,pane) => ctx.engine.addSeries(kind,{...options,priceScaleId:p.scaleId || 'right'},pane) } };
+  };
+  impl.ensure = (ctx,p,pane) => ensure(context(ctx,p),p,pane);
+  impl.update = (ctx,h,p) => {
+    if(p.dataKey) for(const series of h.series) series.applyOptions({priceScaleId:p.scaleId || 'right'});
+    update(context(ctx,p),h,p);
+  };
+  return impl;
+}
+
 /* ---------- 공통 계약 ---------- */
 for (const [, impl] of registry) {
+  bindIndicator(impl);
   if (!impl.remove) impl.remove = (ctx, h) => h.series.forEach((s) => ctx.engine.removeSeries(s));
   if (!impl.live) impl.live = () => {};
 }
@@ -398,4 +426,4 @@ export function source(kind, item, ctx) {
   const impl = registry.get(kind);
   return impl && impl.source ? impl.source(item, ctx) : null;
 }
-export function register(kind, impl) { registry.set(kind, impl); }
+export function register(kind, impl) { registry.set(kind, bindIndicator(impl)); }

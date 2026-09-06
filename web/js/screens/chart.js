@@ -1,3 +1,4 @@
+import { reconcileIndicators, toggleIndicatorSync, indicatorBodyPatch, indicatorProfile } from '../indicator-state.js';
 import { marketTimeOptions } from './chart-time.js';
 /* screens/chart.js - screen kind 'chart' [0615].
    body = 기존 프로필(panes/items/order/view/ui). 시리즈 계층은 무변경. */
@@ -65,7 +66,7 @@ setInterval(() => { for (const [k, fd] of feeds) if (fd.refs.size) pull(k, false
 /* ---- body 스펙 ---- */
 const paneOf = (kind) => { const m = addons.meta(kind); return (m && m.pane) || 'main'; };
 const nextItemId = (body, kind) => {
-  let n = 1;
+  let n = Math.max(body.itemSeq || 1, ...Object.keys(body.items).map(id => +(id.match(/\d+$/)?.[0] || 0) + 1));
   while (body.items[kind + n]) n++;
   return kind + n;
 };
@@ -152,7 +153,6 @@ export const SCREEN = {
       if (!it.props.paneId) it.props.paneId = paneOf(it.kind);
       b.items[id] = it;
     }
-    b.panes = normPanes(b.panes, b, form);
     b.view = obj(b.view);
     b.view.barSpacing = clamp(typeof b.view.barSpacing === 'number' && b.view.barSpacing > 0
       ? b.view.barSpacing : (TF_BS[form.tf] || 8), 0.5, 60);
@@ -162,7 +162,9 @@ export const SCREEN = {
     // Design: D3.v6.legend-selection
     if (!selectable(b, b.ui.selectedItemId, addons.meta)) b.ui.selectedItemId = null;
     if (b.ui.panel === undefined) b.ui.panel = true;
-    return b;
+    const normalized = reconcileIndicators(b, addons);
+    normalized.panes = normPanes(b.panes, indicatorProfile({ ...form, body:normalized }, addons), form);
+    return normalized;
   },
 
   mount(host, form, ctx) {
@@ -184,7 +186,9 @@ export const SCREEN = {
     const tog = el('button', 'cf-tog');
     tog.textContent = '\u2261';
     tog.title = '애드온 패널';
-    bar.append(cin, tsel, ev, tog);
+    const sync = el('button', 'cf-sync');
+    sync.type = 'button';
+    bar.append(cin, tsel, ev, sync, tog);
 
     const main = el('div', 'cf-main');
     const cwrap = el('div', 'cf-chart');
@@ -205,22 +209,59 @@ export const SCREEN = {
     const h = { root, engine, runtime, timeframe: form.tf, defaultKey: keyOf(form.code, form.tf),
                 dataByKey: new Map(), unsubs: new Map(), bodyHash: '', panes: [], tid: 0 };
 
+    // Design: D7.v6.indicator-sync
+    const submitBody = ctx.patchBody;
+    ctx = { ...ctx, patchBody: value => {
+      const before = ctx.form().body;
+      const next = structuredClone(before);
+      const merge = (dst, src) => {
+        for (const [key,value] of Object.entries(src)) {
+          if (value === DEL) delete dst[key];
+          else if (value && typeof value === 'object' && !Array.isArray(value) && dst[key] && typeof dst[key] === 'object') merge(dst[key],value);
+          else dst[key] = structuredClone(value);
+        }
+      };
+      merge(next,value);
+      const after = reconcileIndicators(next,addons);
+      const projected = indicatorProfile({ ...ctx.form(), body:after },addons);
+      after.panes = normPanes(after.panes,projected,ctx.form());
+      submitBody(indicatorBodyPatch(before,after,DEL));
+    } };
+    sync.onclick = () => {
+      const before=ctx.form().body;
+      const next=toggleIndicatorSync(before,!before.indicatorSync?.enabled,addons);
+      if (!next) { ctx.log?.('[지표 동기화] 레전드에서 기준 종목을 선택하세요.'); return; }
+      ctx.patchBody(indicatorBodyPatch(before,next,DEL));
+    };
     // Design: D7.v6.legend-selection
     h.contentKey = contentKey(form);
-    h.legend = () => renderLegend(legend, ctx.form(), addons, (id) => {
+    h.legend = () => {
+      const state=ctx.form().body.indicatorSync;
+      sync.textContent=state?.enabled ? `지표 동기화 ON · ${state.sourceId}` : '지표 동기화 OFF';
+      sync.setAttribute('aria-pressed',String(!!state?.enabled));
+      sync.title='ON: 선택 종목의 지표 설정을 모든 종목에 적용 · OFF: 종목별 독립 편집';
+      renderLegend(legend, ctx.form(), addons, (id) => {
       const value = selectionPatch(ctx.form().body, id, addons.meta);
       if (value) ctx.patchBody(value);
     }, document);
+    };
     const cbs = {
       toggleOpen: (k, v) => ctx.patchBody({ ui: { open: { [k]: v } } }),
-      toggleItem: (id, on) => ctx.patchBody({ items: { [id]: { enabled: on, visible: on } }, ...(!on && ctx.form().body.ui.selectedItemId === id ? { ui: { selectedItemId: null } } : {}) }),
+      toggleItem: (id, on) => {
+        const b=ctx.form().body;
+        if(b.indicatorSync?.enabled && b.items[id].props.syncOriginId) id=b.items[id].props.syncOriginId;
+        ctx.patchBody({ items: { [id]: { enabled: on, visible: on } }, ...(!on && b.ui.selectedItemId === id ? { ui: { selectedItemId: null } } : {}) });
+      },
       patchProps: (id, p) => {
         const b = ctx.form().body;
+        const origin=b.indicatorSync?.enabled && b.items[id].props.syncOriginId;
+        if(origin && b.items[origin]) id=origin;
         const next = { ...b.items[id].props, ...p };
         ctx.patchBody({ items: { [id]: { props: p } }, panes: withPane(b.panes, next.paneId || 'main') });
       },
       deleteItem: (id) => {
         const b = ctx.form().body;
+        if(b.indicatorSync?.enabled && b.items[id].props.syncOriginId) id=b.items[id].props.syncOriginId;
         ctx.patchBody({ items: { [id]: DEL }, order: b.order.filter((x) => x !== id), ...(b.ui.selectedItemId === id ? { ui: { selectedItemId: null } } : {}) });
       },
       prepareItem: (kind) => {
@@ -230,19 +271,23 @@ export const SCREEN = {
       },
       addItem: (kind, draft) => {
         const b = ctx.form().body;
+        const target = b.indicatorSync?.enabled ? b.indicatorSync.sourceId : b.ui.selectedItemId;
+        if (addons.meta(kind)?.indicator && !target) { ctx.log?.('[지표] 레전드에서 종목을 먼저 선택하세요.'); return; }
         const id = draft && draft.id && !b.items[draft.id] ? draft.id : nextItemId(b, kind);
         const pid = paneOf(kind);
         const props = { ...addons.defaults(kind, { id, form: ctx.form() }),
-          paneId: pid, ...obj(draft && draft.props) };
+          paneId: pid, ...obj(draft && draft.props), ...(addons.meta(kind)?.indicator ? {targetItemId:target} : {}) };
         const it = { kind, enabled: true, visible: true,
                      props };
-        ctx.patchBody({ items: { [id]: it }, order: [...b.order, id],
+        ctx.patchBody({ items: { [id]: it }, order: [...b.order, id], itemSeq: +(id.match(/\d+$/)?.[0] || 0) + 1,
           panes: withPane(b.panes, props.paneId || pid) });
       },
       deletePane: (pid) => {
         const b = ctx.form().body;
         const formNow = ctx.form();
-        const gone = b.order.filter((id) => normalizedPane(b, id, formNow) === pid);
+        const projected = indicatorProfile(formNow, addons);
+        const gone = [...new Set(b.order.filter((id) => normalizedPane(projected, id, formNow) === pid)
+          .map(id => b.indicatorSync?.enabled && b.items[id].props.syncOriginId || id))];
         const items = {};
         for (const id of gone) items[id] = DEL;
         ctx.patchBody({ items, order: b.order.filter((id) => !gone.includes(id)),
@@ -280,10 +325,11 @@ export const SCREEN = {
                    liveBar: mainData.liveBar, markers: mainData.markers,
                    dataFor: (key) => h.dataByKey.get(key || h.defaultKey) || empty,
                    patchItem: (id, p) => ctx.patchBody({ items: { [id]: { props: p } } }) };
-      const r = runtime.apply(f.body, ctx.globalOn(), rc, geo);
+      const projected = indicatorProfile(f, addons);
+      const r = runtime.apply(projected, ctx.globalOn(), rc, geo);
       h.panes = r.panes;
-      const bh = JSON.stringify([f.body.items, f.body.order, f.body.panes, f.body.ui]);
-      if (bh !== h.bodyHash) { h.bodyHash = bh; proptree.renderTree(tree, f.body, r.panes, cbs); }
+      const bh = JSON.stringify([projected.items, projected.order, projected.panes, projected.ui]);
+      if (bh !== h.bodyHash) { h.bodyHash = bh; proptree.renderTree(tree, projected, r.panes, cbs); }
       else proptree.syncHeightInputs(tree, r.panes);
       panel.style.display = obj(f.body.ui).panel === false ? 'none' : '';
       const e = mainData.ev || {};

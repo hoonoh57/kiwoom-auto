@@ -124,7 +124,7 @@ JS_TESTS = (
     "desk-bridge-v6.mjs", "deskspec-v6.mjs", "frame-v6.mjs",
     "indicator-sync-v6.mjs", "multisymbol-candles.mjs", "state-projection-v6.mjs",
     "ui-slots-v6.mjs", "workspace-tools-v6.mjs",
-    "project-envelope-a.mjs", "project-envelope-b.mjs",
+    "project-envelope-a.mjs", "project-envelope-b.mjs", "project-commands-c.mjs",
 )
 
 
@@ -168,7 +168,8 @@ def review_gate(log, scope="foundation-r7"):
         assert isinstance(report["mismatches"], list)
         source_pairs = [("rules.md", "rulesSha256")]
         scoped_ends = {"project-envelope-a": "D14.foundation-r7.review",
-                       "project-envelope-b": "D7.project-storage.followup"}
+                       "project-envelope-b": "D7.project-storage.followup",
+                       "project-commands-c": "D14.project-commands-c.end"}
         if scope in scoped_ends:
             source = json.loads((R / f"tests/reference/{scope}.review-source.json").read_text(encoding="utf-8"))["readme"]
             assert hashlib.sha256(source.encode("utf-8")).hexdigest() == report["readmeSha256"]
@@ -225,7 +226,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for gate in ("static", "semantic", "recorder", "t12"):
         parser.add_argument("--" + gate, action="store_true")
-    parser.add_argument("--t12-scope", choices=("foundation-r7", "project-envelope-a", "project-envelope-b"), default="foundation-r7")
+    parser.add_argument("--t12-scope", choices=("foundation-r7", "project-envelope-a", "project-envelope-b", "project-commands-c"), default="foundation-r7")
     args = parser.parse_args(argv)
     if args.t12_scope != "foundation-r7" and not args.t12:
         parser.error("--t12-scope requires --t12")

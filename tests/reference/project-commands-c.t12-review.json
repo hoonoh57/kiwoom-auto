@@ -1,0 +1,53 @@
+{
+  "schemaVersion":1,
+  "scope":"project-commands-c",
+  "reviewer":{"id":"review_envelope_b","independent":true},
+  "readFiles":["rules.md","README.md"],
+  "readmeSha256":"6d03b3e2da92ef841e16fb21b489bb46b153c8b309385d55604f60a326aac96f",
+  "rulesSha256":"cc5d71548f84ede8445ea48ed4019056ea6a8ae31a4578526e8f266e11e0cc6c",
+  "verdict":"PASS",
+  "signatures":[
+    "createProject(root, name, workspaceText, validateWorkspace) -> root (sync)",
+    "renameProject(root, projectId, name) -> root (sync)",
+    "setProjectEnabled(root, projectId, enabled) -> root (sync)",
+    "deleteProject(root, projectId) -> root (sync)"
+  ],
+  "contract":{
+    "rootPrecondition":"B-validated v7 root; runtime guard checks non-null non-array root object, schemaVersion 7, non-null non-array projects object. Other invalid roots are outside public error contract.",
+    "errorType":"Synchronous Error instance named ProjectStateError with code and message equal to error code; no additional fields beyond A error contract.",
+    "priority":{
+      "create":"ROOT_INVALID, PROJECT_NAME, PROJECT_NAME_DUPLICATE in projectOrder, PROJECT_ID_EXHAUSTED, then A wrap INVALID_ARGUMENT/INVALID_JSON/WORKSPACE_VERSION/WORKSPACE_INVALID",
+      "rename":"ROOT_INVALID, INVALID_PROJECT_ID, PROJECT_NOT_FOUND, PROJECT_NAME, PROJECT_NAME_DUPLICATE excluding own project, then same-original-name identity noop or name replacement",
+      "setEnabled":"ROOT_INVALID, INVALID_PROJECT_ID, PROJECT_NOT_FOUND, PROJECT_ENABLED, same-value identity noop, then LAST_ENABLED_PROJECT on false if no other enabled project",
+      "delete":"ROOT_INVALID, INVALID_PROJECT_ID, PROJECT_NOT_FOUND, LAST_ENABLED_PROJECT when no other enabled project"
+    },
+    "selection":"Disable/delete active target chooses first other enabled project in projectOrder. Non-active target changes preserve activeProjectId. Enabling preserves activeProjectId. Creation selects new project.",
+    "immutability":"No input mutations. Create copies root/projects/order and creates new project/workspace, preserving old project references. Rename/setEnabled copy root/projects/target only and preserve order/props/workspace/other projects. Delete copies root/projects/order and preserves survivors. Rename identical original name and setEnabled identical boolean return original root.",
+    "creation":"New ID p+projectSeq; increase projectSeq by 1; append ID. enabled true; connectionRef default; dataEnabled true; automationEnabled false. Callback receives only one deep cloned workspace argument per A, strict true required; throw/false/Promise fail WORKSPACE_INVALID. Clone mutation cannot change output workspace. Counter at MAX_SAFE_INTEGER errors before callback.",
+    "names":"Trim equality, 1..32 Unicode code points, uniqueness by NFKC then locale-independent lowercase. Store original name unchanged.",
+    "lifecycle":[],
+    "requests":0,
+    "writes":0
+  },
+  "scenarios":[
+    {"id":"PCC1","expected":{"activeProjectId":"p2","projectSeq":3,"projectOrder":["p1","p2"],"name":"Second","rootIdentity":false,"preservedReferences":["projects.p1"],"automationEnabled":false,"callbackCalls":1}},
+    {"id":"PCC2","expected":{"code":"PROJECT_NAME_DUPLICATE","callbackCalls":0}},
+    {"id":"PCC3","expected":{"code":"PROJECT_ID_EXHAUSTED","callbackCalls":0}},
+    {"id":"PCC4","expected":{"code":"WORKSPACE_INVALID","callbackCalls":1,"inputUnchanged":true}},
+    {"id":"PCC5","expected":{"rootIdentity":true,"callbackCalls":0}},
+    {"id":"PCC6","expected":{"name":"Renamed","rootIdentity":false,"preservedReferences":["projectOrder","projects.p1.workspace","projects.p1.props"],"callbackCalls":0}},
+    {"id":"PCC7","expected":{"code":"PROJECT_NAME_DUPLICATE","callbackCalls":0}},
+    {"id":"PCC8","expected":{"code":"LAST_ENABLED_PROJECT","callbackCalls":0}},
+    {"id":"PCC9","expected":{"activeProjectId":"p2","enabled":false,"rootIdentity":false,"preservedReferences":["projects.p2","projectOrder","projects.p1.workspace","projects.p1.props"],"callbackCalls":0}},
+    {"id":"PCC10","expected":{"rootIdentity":true,"callbackCalls":0}},
+    {"id":"PCC11","expected":{"activeProjectId":"p2","projectOrder":["p2"],"projectSeq":3,"rootIdentity":false,"preservedReferences":["projects.p2"],"callbackCalls":0}},
+    {"id":"PCC12","expected":{"code":"LAST_ENABLED_PROJECT","callbackCalls":0}},
+    {"id":"PCC13","expected":{"code":"PROJECT_NOT_FOUND","callbackCalls":0}},
+    {"id":"PCC14","expected":{"activeProjectId":"p3","projectSeq":4,"projectOrder":["p1","p3"],"name":"Third","rootIdentity":false,"preservedReferences":["projects.p1"],"automationEnabled":false,"callbackCalls":1}}
+  ],
+  "mismatches":[],
+  "resolvedFindings":[
+    {"id":"PCC3-COUNTER-FIELD","status":"RESOLVED","reason":"Re-read current C scope: PCC3 explicitly sets E.projectSeq to MAX_SAFE_INTEGER and passes valid name/text/callback, so PROJECT_ID_EXHAUSTED with callbackCalls 0 follows D7."},
+    {"id":"PCC14-WORKSPACE-INPUT-TYPE","status":"RESOLVED","reason":"PCC14 now explicitly passes deleteProject's returned root and JSON.stringify(W) to createProject. Sequence remains 3 after deleting p2, then new p3 increases it to 4 and becomes active. No remaining blocking mismatch found."}
+  ]
+}

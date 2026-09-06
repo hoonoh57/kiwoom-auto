@@ -1,0 +1,1313 @@
+{
+  "schemaVersion": 1,
+  "designId": "D11.project-commands-c.vectors",
+  "publicSignatures": [
+    "createProject(root, name, workspaceText, validateWorkspace) -> root",
+    "renameProject(root, projectId, name) -> root",
+    "setProjectEnabled(root, projectId, enabled) -> root",
+    "deleteProject(root, projectId) -> root"
+  ],
+  "cases": [
+    {
+      "id": "PCC1",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 2,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "create",
+      "args": [
+        "Second",
+        {
+          "schemaVersion": 6,
+          "marker": "keep",
+          "opaque": {
+            "items": [
+              {
+                "kind": "future",
+                "visible": false,
+                "props": {
+                  "n": 3
+                }
+              }
+            ]
+          }
+        },
+        "accept"
+      ],
+      "expected": {
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 3,
+          "activeProjectId": "p2",
+          "projectOrder": [
+            "p1",
+            "p2"
+          ],
+          "projects": {
+            "p1": {
+              "name": "기본 프로젝트",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "p2": {
+              "name": "Second",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 1
+    },
+    {
+      "id": "PCC2",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 2,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "create",
+      "args": [
+        "기본 프로젝트",
+        {
+          "schemaVersion": 6,
+          "marker": "keep",
+          "opaque": {
+            "items": [
+              {
+                "kind": "future",
+                "visible": false,
+                "props": {
+                  "n": 3
+                }
+              }
+            ]
+          }
+        },
+        "accept"
+      ],
+      "expected": {
+        "code": "PROJECT_NAME_DUPLICATE"
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC3",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 9007199254740991,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "create",
+      "args": [
+        "Second",
+        {
+          "schemaVersion": 6,
+          "marker": "keep",
+          "opaque": {
+            "items": [
+              {
+                "kind": "future",
+                "visible": false,
+                "props": {
+                  "n": 3
+                }
+              }
+            ]
+          }
+        },
+        "accept"
+      ],
+      "expected": {
+        "code": "PROJECT_ID_EXHAUSTED"
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC4",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 2,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "create",
+      "args": [
+        "Second",
+        {
+          "schemaVersion": 6,
+          "marker": "keep",
+          "opaque": {
+            "items": [
+              {
+                "kind": "future",
+                "visible": false,
+                "props": {
+                  "n": 3
+                }
+              }
+            ]
+          }
+        },
+        "reject"
+      ],
+      "expected": {
+        "code": "WORKSPACE_INVALID"
+      },
+      "callbackCalls": 1
+    },
+    {
+      "id": "PCC5",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 2,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "rename",
+      "args": [
+        "p1",
+        "기본 프로젝트"
+      ],
+      "expected": {
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 2,
+          "activeProjectId": "p1",
+          "projectOrder": [
+            "p1"
+          ],
+          "projects": {
+            "p1": {
+              "name": "기본 프로젝트",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC6",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 2,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "rename",
+      "args": [
+        "p1",
+        "Renamed"
+      ],
+      "expected": {
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 2,
+          "activeProjectId": "p1",
+          "projectOrder": [
+            "p1"
+          ],
+          "projects": {
+            "p1": {
+              "name": "Renamed",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC7",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 3,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1",
+          "p2"
+        ],
+        "projects": {
+          "p1": {
+            "name": "ＡBC",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "p2": {
+            "name": "Second",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "rename",
+      "args": [
+        "p2",
+        "abc"
+      ],
+      "expected": {
+        "code": "PROJECT_NAME_DUPLICATE"
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC8",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 2,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "enabled",
+      "args": [
+        "p1",
+        false
+      ],
+      "expected": {
+        "code": "LAST_ENABLED_PROJECT"
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC9",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 3,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1",
+          "p2"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "p2": {
+            "name": "Second",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "enabled",
+      "args": [
+        "p1",
+        false
+      ],
+      "expected": {
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 3,
+          "activeProjectId": "p2",
+          "projectOrder": [
+            "p1",
+            "p2"
+          ],
+          "projects": {
+            "p1": {
+              "name": "기본 프로젝트",
+              "enabled": false,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "p2": {
+              "name": "Second",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC10",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 3,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1",
+          "p2"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "p2": {
+            "name": "Second",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "enabled",
+      "args": [
+        "p2",
+        true
+      ],
+      "expected": {
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 3,
+          "activeProjectId": "p1",
+          "projectOrder": [
+            "p1",
+            "p2"
+          ],
+          "projects": {
+            "p1": {
+              "name": "기본 프로젝트",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "p2": {
+              "name": "Second",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC11",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 3,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1",
+          "p2"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "p2": {
+            "name": "Second",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "delete",
+      "args": [
+        "p1"
+      ],
+      "expected": {
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 3,
+          "activeProjectId": "p2",
+          "projectOrder": [
+            "p2"
+          ],
+          "projects": {
+            "p2": {
+              "name": "Second",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC12",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 2,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "delete",
+      "args": [
+        "p1"
+      ],
+      "expected": {
+        "code": "LAST_ENABLED_PROJECT"
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC13",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 3,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1",
+          "p2"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "p2": {
+            "name": "Second",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "delete",
+      "args": [
+        "p9"
+      ],
+      "expected": {
+        "code": "PROJECT_NOT_FOUND"
+      },
+      "callbackCalls": 0
+    },
+    {
+      "id": "PCC14",
+      "root": {
+        "schemaVersion": 7,
+        "projectSeq": 3,
+        "activeProjectId": "p1",
+        "projectOrder": [
+          "p1",
+          "p2"
+        ],
+        "projects": {
+          "p1": {
+            "name": "기본 프로젝트",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "p2": {
+            "name": "Second",
+            "enabled": true,
+            "props": {
+              "connectionRef": "default",
+              "dataEnabled": true,
+              "automationEnabled": false
+            },
+            "workspace": {
+              "schemaVersion": 6,
+              "marker": "keep",
+              "opaque": {
+                "items": [
+                  {
+                    "kind": "future",
+                    "visible": false,
+                    "props": {
+                      "n": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "op": "delete-create",
+      "args": [
+        "p2",
+        "Third",
+        {
+          "schemaVersion": 6,
+          "marker": "keep",
+          "opaque": {
+            "items": [
+              {
+                "kind": "future",
+                "visible": false,
+                "props": {
+                  "n": 3
+                }
+              }
+            ]
+          }
+        },
+        "accept"
+      ],
+      "expected": {
+        "value": {
+          "schemaVersion": 7,
+          "projectSeq": 4,
+          "activeProjectId": "p3",
+          "projectOrder": [
+            "p1",
+            "p3"
+          ],
+          "projects": {
+            "p1": {
+              "name": "기본 프로젝트",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "p3": {
+              "name": "Third",
+              "enabled": true,
+              "props": {
+                "connectionRef": "default",
+                "dataEnabled": true,
+                "automationEnabled": false
+              },
+              "workspace": {
+                "schemaVersion": 6,
+                "marker": "keep",
+                "opaque": {
+                  "items": [
+                    {
+                      "kind": "future",
+                      "visible": false,
+                      "props": {
+                        "n": 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "callbackCalls": 1
+    }
+  ],
+  "reviewAssertions": {
+    "PCC1": {
+      "callbackCalls": 1,
+      "rootIdentity": false,
+      "activeProjectId": "p2",
+      "projectSeq": 3,
+      "projectOrder": [
+        "p1",
+        "p2"
+      ],
+      "name": "Second",
+      "automationEnabled": false,
+      "preservedReferences": [
+        "projects.p1"
+      ]
+    },
+    "PCC2": {
+      "callbackCalls": 0,
+      "code": "PROJECT_NAME_DUPLICATE"
+    },
+    "PCC3": {
+      "callbackCalls": 0,
+      "code": "PROJECT_ID_EXHAUSTED"
+    },
+    "PCC4": {
+      "callbackCalls": 1,
+      "code": "WORKSPACE_INVALID",
+      "inputUnchanged": true
+    },
+    "PCC5": {
+      "callbackCalls": 0,
+      "rootIdentity": true
+    },
+    "PCC6": {
+      "callbackCalls": 0,
+      "rootIdentity": false,
+      "name": "Renamed",
+      "preservedReferences": [
+        "projectOrder",
+        "projects.p1.workspace",
+        "projects.p1.props"
+      ]
+    },
+    "PCC7": {
+      "callbackCalls": 0,
+      "code": "PROJECT_NAME_DUPLICATE"
+    },
+    "PCC8": {
+      "callbackCalls": 0,
+      "code": "LAST_ENABLED_PROJECT"
+    },
+    "PCC9": {
+      "callbackCalls": 0,
+      "rootIdentity": false,
+      "activeProjectId": "p2",
+      "enabled": false,
+      "preservedReferences": [
+        "projects.p2",
+        "projectOrder",
+        "projects.p1.workspace",
+        "projects.p1.props"
+      ]
+    },
+    "PCC10": {
+      "callbackCalls": 0,
+      "rootIdentity": true
+    },
+    "PCC11": {
+      "callbackCalls": 0,
+      "rootIdentity": false,
+      "activeProjectId": "p2",
+      "projectSeq": 3,
+      "projectOrder": [
+        "p2"
+      ],
+      "preservedReferences": [
+        "projects.p2"
+      ]
+    },
+    "PCC12": {
+      "callbackCalls": 0,
+      "code": "LAST_ENABLED_PROJECT"
+    },
+    "PCC13": {
+      "callbackCalls": 0,
+      "code": "PROJECT_NOT_FOUND"
+    },
+    "PCC14": {
+      "callbackCalls": 1,
+      "rootIdentity": false,
+      "activeProjectId": "p3",
+      "projectSeq": 4,
+      "projectOrder": [
+        "p1",
+        "p3"
+      ],
+      "name": "Third",
+      "automationEnabled": false,
+      "preservedReferences": [
+        "projects.p1"
+      ]
+    }
+  }
+}

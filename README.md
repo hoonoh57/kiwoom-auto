@@ -1088,7 +1088,9 @@ semantic은 tests의 등록된 JS 회귀 파일 전체와 test_kiwoom_rest.py/te
 
 recorder는 desk-bridge-v6.mjs의 실제 recorder callback 이벤트를 artifacts/desk-recorder.v6.json에 저장한다. {schemaVersion:1,harnesses:[{id,events}]} 형식이며 각 harness의 seq를 유지한다. 기존 fixture 비교 assertion을 그대로 실행하고 성공한 실행에 한해서만 아티팩트를 쓴다. 생성되지 않은 과거 아티팩트로 PASS를 판정하지 않는다.
 
-t12는 tests/reference/<scope>.t12-review.json의 독립 재구성을 검사한다. 기본 scope는 foundation-r7이고 --t12-scope project-envelope-a 또는 project-envelope-b로 통과된 최소 범위를 별도 검사한다. scope 옵션은 --t12와 함께만 사용한다. 증거 누락/형식 오류/문서 변경/차단 결함/시그니처·기대값 불일치는 FAIL이다. PASS 라벨만으로 통과시키지 않는다. 전체 r7은 차단 결함이 남아 있다.
+t12는 tests/reference/<scope>.t12-review.json의 독립 재구성을 검사한다. 기본 scope는 foundation-r7이고 --t12-scope project-envelope-a, project-envelope-b, project-commands-c로 통과된 최소 범위를 별도 검사한다. scope 옵션은 --t12와 함께만 사용한다. 증거 누락/형식 오류/문서 변경/차단 결함/시그니처·기대값 불일치는 FAIL이다. PASS 라벨만으로 통과시키지 않는다. 전체 r7은 차단 결함이 남아 있다.
+
+project-commands-c는 D1.project-commands-c부터 D14.project-commands-c.end 직전까지의 원문을 snapshot에 보존하고 같은 SHA/범위 비교로 시그니처 4개와 PCC1~14 기대값을 비교한다.
 
 project-envelope-a의 검토 당시 README 원문은 tests/reference/project-envelope-a.review-source.json에 보존한다. 그 원문의 SHA256이 독립 보고서와 일치하고, 현재 README의 D1.project-envelope-a부터 다음 D14.foundation-r7.review 직전까지가 원문과 LF 정규화 기준 동일해야 한다. rules.md 원문 SHA256도 일치해야 한다. 시그니처 3개와 PEA1~PEA12의 기대값/빈 lifecycle trace를 contract fixture와 비교한다. project-envelope-b도 같은 방식으로 별도 원문 snapshot을 사용하며 D1.project-envelope-b부터 D7.project-storage.followup 직전까지, 시그니처 1개와 PEB1~PEB14를 비교한다. 해당 scope PASS를 전체 r7 PASS로 출력하지 않는다. 원문 snapshot은 검토 증거이며 상시 규칙 문서가 아니다.
 
@@ -1281,3 +1283,87 @@ export function validateProjectEnvelopeJson(text, validateWorkspace). text가 st
 관측: app.js patch는 먼저 st를 바꾸고 실패를 로그로만 남긴다. 부팅은 schemaVersion>6을 recovery로 보내며 root path로 v6 보정 patch를 저장한다. 따라서 v7 파일만 쓰면 현재 화면이 정상 부팅되지 않는다. 이 결함은 검증기 PASS로 해소됐다고 보지 않는다.
 
 후속 계약에서는 (1) 현재 프로젝트 ID를 enqueue 전에 포착해 뒤늦은 쓰기가 다른 프로젝트로 가지 않을 것, (2) UI 성공 표시를 저장 ack와 구분할 것, (3) 실패 이후 큐의 재기준화/취소 결과를 정의할 것, (4) legacy 원문 백업 후 교체와 UI schema 전환을 함께 검증할 것, (5) 숨김/미등록 ADDON 원문을 유지할 것, (6) /api/node 및 store generic CRUD 계약은 그대로 유지할 것을 고정한다. 구체 공개 API/오류/trace는 아직 DRAFT이며 이 문단만으로 제품 구현하지 않는다.
+
+## D1.project-commands-c — 프로젝트 desired 명령
+
+범위는 생성/이름 변경/활성 변경/삭제의 순수 함수 4개. UI/API/파일 쓰기/실행 복원은 제외. 사전 검증한 v7 root만 입력한다. 저장 연결에 제공할 동일 desired 명령이다.
+
+### D2.project-commands-c.boundary
+
+STATE web/js/project-state.js만 제품 변경. import/ENGINE/ADDON/BRIDGE 변경 0. 기존 A/B 공개 동작 변경 0.
+
+### D3.project-commands-c.types
+
+root는 B validator를 통과한 v7 envelope라는 전제다. 실행 시 A select와 동일하게 root object/schemaVersion=7/projects object만 검사한다. 나머지 잘못된 root는 전제 위반이며 공개 오류 계약 밖이다. ProjectId는 B 규칙(끝 개행 포함 공백 금지). name은 B 규칙(원문 trim 일치, Unicode code point 1~32, NFKC 뒤 locale 비의존 소문자 비교키 유일). callback은 A의 v6 동기 검증 계약이다.
+
+### D4.project-commands-c.schema
+
+schema 변경 없음. canonical state/workspace.v7.fixture.json. 새 프로젝트는 name 인자, enabled=true, props={connectionRef:"default",dataEnabled:true,automationEnabled:false}, workspace는 A wrapWorkspaceJson의 무손실 결과. 새 ID=p+root.projectSeq, counter 1 증가, order 끝에 추가하고 active를 새 ID로 바꾼다. 생성 시 root.projectSeq가 MAX_SAFE_INTEGER이면 PROJECT_ID_EXHAUSTED. 삭제는 counter 감소/ID 재사용을 하지 않는다. 파일 이관은 하지 않는다.
+
+### D5.project-commands-c.catalog
+
+새 kind 없음. 프로젝트 명령은 내부 workspace/ADDON 의미를 검사하거나 보정하지 않는다. 생성 시 callback에 v6 검증을 위임한다.
+
+### D6.project-commands-c.api
+
+시그니처 순서와 반환은 다음과 같고 모두 동기다.
+1. createProject(root, name, workspaceText, validateWorkspace) -> root
+2. renameProject(root, projectId, name) -> root
+3. setProjectEnabled(root, projectId, enabled) -> root
+4. deleteProject(root, projectId) -> root
+
+공통 root 검사 실패는 ROOT_INVALID. 대상 함수는 ID 형식 INVALID_PROJECT_ID, own key 존재 PROJECT_NOT_FOUND 순서. 오류는 A와 같은 ProjectStateError: name=ProjectStateError, code=message=코드 문자열, 추가 필드 없음.
+
+### D7.project-commands-c.algorithm
+
+create: root 검사, name 형식, projectOrder 순서 이름 중복 검사, counter 소진 검사, A wrapWorkspaceJson(workspaceText,validateWorkspace) 호출 순서. 이름 오류 PROJECT_NAME, 중복 PROJECT_NAME_DUPLICATE. wrap의 인자/JSON/WORKSPACE 오류를 그대로 전파한다. callback은 원래 A 계약대로 clone 하나만 받는다. 생성은 새 root/projects/order/project/workspace를 반환하고 기존 project 참조를 보존한다.
+rename: root/대상 검사, name 형식, 자신을 제외한 이름 중복 검사. 같은 원문 이름이면 root identity 유지. 다르면 새 root/projects/대상 project로 name만 변경, workspace/props/order와 다른 project identity 유지.
+setEnabled: root/대상 검사, enabled가 boolean 아니면 PROJECT_ENABLED. 같은 값이면 root identity 유지. false이면 projectOrder에서 대상 이외 enabled=true 첫 프로젝트를 찾는다. 없으면 LAST_ENABLED_PROJECT. 대상이 active이면 그 첫 enabled ID로 active를 변경한다. 대상이 active가 아니면 active 유지. true이면 active 유지. 새 root/projects/대상 project, 기존 props/workspace/order와 다른 project 참조 유지.
+delete: root/대상 검사. projectOrder에서 대상 이외 enabled=true 첫 프로젝트를 찾고 없으면 LAST_ENABLED_PROJECT. 새 root/projects/order에서 대상만 제거. active 대상 삭제면 찾은 ID로 변경, 아니면 active 유지. 남은 project 참조 보존, counter 유지.
+
+### D8.project-commands-c.equality
+
+입력 root와 모든 하위 객체 변경 0. 이름을 trim/NFKC 처리한 값으로 저장하지 않는다. A의 JSON 값 동등성 사용. 삭제된 ID를 다시 발급하지 않으며 noop은 위 명시 두 경우 root identity까지 유지한다.
+
+### D9.project-commands-c.effective
+
+선택 변경은 기존 다른 프로젝트의 automationEnabled/dataEnabled를 변경하지 않는다. 신규 automationEnabled=false. 함수 자체는 자원/주문 실행 0. 비활성화/삭제의 실제 자원 해제는 후속 정상 diff 연결 책임이다.
+
+### D10.project-commands-c.errors
+
+검사는 D7 순서. 모든 함수 먼저 ROOT_INVALID, 대상 함수는 다음 INVALID_PROJECT_ID/PROJECT_NOT_FOUND. create는 name/중복/counter 검사가 callback보다 먼저. rename은 대상 존재가 name 검사보다 먼저. setEnabled는 타입 오류가 noop/마지막 활성 검사보다 먼저. delete는 없는 대상을 noop으로 처리하지 않는다. callback false/throw/Promise는 A의 WORKSPACE_INVALID이며 부분 생성/입력 변경 없음.
+
+### D11.project-commands-c.vectors
+
+W는 A의 W, E는 A의 E(W). E2는 E에 p2(name="Second", 나머지는 p1 clone), projectSeq=3, projectOrder=[p1,p2]를 추가한 값. 모든 성공/실패 lifecycle=[], request/write=0.
+
+| id | 동작 | 기대 |
+| --- | --- | --- |
+| PCC1 | create E,"Second",JSON.stringify(W),accept | active=p2,seq=3,order=[p1,p2],p1 identity 유지,새 automation=false |
+| PCC2 | create E,p1.name,JSON.stringify(W),accept | PROJECT_NAME_DUPLICATE, callback=0 |
+| PCC3 | E.projectSeq=MAX_SAFE_INTEGER 후 create(E,"Second",JSON.stringify(W),accept) | PROJECT_ID_EXHAUSTED, callback=0 |
+| PCC4 | create E,"Second",JSON.stringify(W),reject | WORKSPACE_INVALID, 입력 불변 |
+| PCC5 | rename E,p1,p1.name | root identity 유지 |
+| PCC6 | rename E,p1,"Renamed" | name만 변경, order/workspace/props identity 유지 |
+| PCC7 | E2.p1.name="ＡBC" 후 rename p2,"abc" | PROJECT_NAME_DUPLICATE |
+| PCC8 | setEnabled E,p1,false | LAST_ENABLED_PROJECT |
+| PCC9 | setEnabled E2,p1,false | active=p2,p1.enabled=false,p2 identity 유지 |
+| PCC10 | setEnabled E2,p2,true | root identity 유지 |
+| PCC11 | delete E2,p1 | active=p2,order=[p2],seq=3,p2 identity 유지 |
+| PCC12 | delete E,p1 | LAST_ENABLED_PROJECT |
+| PCC13 | delete E2,p9 | PROJECT_NOT_FOUND |
+| PCC14 | deleteProject(E2,"p2") 반환 root로 createProject(root,"Third",JSON.stringify(W),accept) | 새 ID=p3,seq=4,order=[p1,p3] |
+
+### D12.project-commands-c.cost
+
+명시 사용자 명령만 실행하며 tick 호출 금지. P=1/10/1000에 동일 알고리즘. 이름/활성 탐색 및 shallow projects/order copy O(P), 생성만 JSON byte B의 O(B) 추가. 기존 workspace deep clone 0, 생성 입력 workspace clone만 허용. noop setEnabled O(1); rename은 중복 검사 O(P). lifecycle operation 항상 0. callback 외부 비용 별도.
+
+### D13.project-commands-c.files
+
+제품 web/js/project-state.js, tests/project-commands-c.mjs, tests/fixtures/project-commands-c.contract.json, tests/reference/project-commands-c.t12-review.json. 검토 원문 snapshot은 기존 scoped gate와 동일. 독립 검토는 시그니처 4개와 PCC1~14의 기대를 재구성한다.
+
+### D14.project-commands-c.open
+
+설계 선택 사항 0. 독립 T12 통과 전 제품 코드 금지. 사용자 기존 순차 구현 승인 범위이며 저장/UI 계약은 여전히 별도.
+
+## D14.project-commands-c.end

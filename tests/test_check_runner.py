@@ -173,6 +173,23 @@ class CheckRunnerTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("INVALID_REVIEW", output)
 
+    def test_commands_c_review_checks_scope_and_signatures(self):
+        self.copy_scoped_evidence("project-commands-c")
+        args = ["--t12", "--t12-scope", "project-commands-c"]
+        self.assertEqual(self.invoke(args)[0], 0)
+        path = self.root / "README.md"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text + "\nUnrelated followup\n", encoding="utf-8")
+        self.assertEqual(self.invoke(args)[0], 0)
+        path.write_text(text.replace("### D7.project-commands-c.algorithm", "### D7.project-commands-c.algorithm changed"), encoding="utf-8")
+        self.assertIn("STALE_REVIEW", self.invoke(args)[1])
+        path.write_text(text, encoding="utf-8")
+        contract_path = self.root / "tests/fixtures/project-commands-c.contract.json"
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        contract["publicSignatures"][0] = "different() -> root"
+        contract_path.write_text(json.dumps(contract), encoding="utf-8")
+        self.assertIn("INVALID_REVIEW", self.invoke(args)[1])
+
     def test_old_recorder_file_cannot_turn_failed_run_into_pass(self):
         target = self.root / "artifacts/desk-recorder.v6.json"
         target.parent.mkdir()

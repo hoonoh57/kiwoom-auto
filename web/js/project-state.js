@@ -136,3 +136,72 @@ export function validateProjectEnvelopeJson(text, validateWorkspace) {
   }
   return { ok: true, value: root };
 }
+
+// Design: D3.project-commands-c.types, D10.project-commands-c.errors
+function commandRoot(root) {
+  if (!object(root) || root.schemaVersion !== PROJECT_SCHEMA || !object(root.projects)) fail('ROOT_INVALID');
+}
+function commandTarget(root, projectId) {
+  commandRoot(root);
+  validId(projectId);
+  if (projectId.trim() !== projectId) fail('INVALID_PROJECT_ID');
+  if (!Object.hasOwn(root.projects, projectId)) fail('PROJECT_NOT_FOUND');
+}
+function commandName(root, name, exceptId) {
+  if (typeof name !== 'string' || name.trim() !== name || [...name].length < 1 || [...name].length > 32) fail('PROJECT_NAME');
+  const key = name.normalize('NFKC').toLowerCase();
+  for (const id of root.projectOrder) {
+    if (id !== exceptId && root.projects[id].name.normalize('NFKC').toLowerCase() === key) fail('PROJECT_NAME_DUPLICATE');
+  }
+}
+
+// Design: D6.project-commands-c.api, D7.project-commands-c.algorithm
+export function createProject(root, name, workspaceText, validateWorkspace) {
+  commandRoot(root);
+  commandName(root, name);
+  if (root.projectSeq === Number.MAX_SAFE_INTEGER) fail('PROJECT_ID_EXHAUSTED');
+  const project = wrapWorkspaceJson(workspaceText, validateWorkspace).projects.p1;
+  const id = `p${root.projectSeq}`;
+  return {
+    ...root, projectSeq: root.projectSeq + 1, activeProjectId: id,
+    projectOrder: [...root.projectOrder, id],
+    projects: { ...root.projects, [id]: { ...project, name } },
+  };
+}
+
+// Design: D6.project-commands-c.api, D7.project-commands-c.algorithm
+export function renameProject(root, projectId, name) {
+  commandTarget(root, projectId);
+  commandName(root, name, projectId);
+  const project = root.projects[projectId];
+  if (project.name === name) return root;
+  return { ...root, projects: { ...root.projects, [projectId]: { ...project, name } } };
+}
+
+// Design: D6.project-commands-c.api, D7.project-commands-c.algorithm
+export function setProjectEnabled(root, projectId, enabled) {
+  commandTarget(root, projectId);
+  if (typeof enabled !== 'boolean') fail('PROJECT_ENABLED');
+  const project = root.projects[projectId];
+  if (project.enabled === enabled) return root;
+  let activeProjectId = root.activeProjectId;
+  if (!enabled) {
+    const replacement = root.projectOrder.find(id => id !== projectId && root.projects[id].enabled);
+    if (!replacement) fail('LAST_ENABLED_PROJECT');
+    if (activeProjectId === projectId) activeProjectId = replacement;
+  }
+  return { ...root, activeProjectId, projects: { ...root.projects, [projectId]: { ...project, enabled } } };
+}
+
+// Design: D6.project-commands-c.api, D7.project-commands-c.algorithm
+export function deleteProject(root, projectId) {
+  commandTarget(root, projectId);
+  const replacement = root.projectOrder.find(id => id !== projectId && root.projects[id].enabled);
+  if (!replacement) fail('LAST_ENABLED_PROJECT');
+  const projects = { ...root.projects };
+  delete projects[projectId];
+  return {
+    ...root, projects, projectOrder: root.projectOrder.filter(id => id !== projectId),
+    activeProjectId: root.activeProjectId === projectId ? replacement : root.activeProjectId,
+  };
+}

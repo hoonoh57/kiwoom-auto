@@ -38,6 +38,11 @@
 
 ### 실행 계획 — README.md D1~D14.foundation-r7
 
+- [x] 2026-09-07 project-commands-c 명세를 먼저 작성. 독립 검토의 PCC3/PCC14 입력 표기 결함 2건 수정 후 재검토 PASS. 시그니처 4개/PCC1~14 기대값 비교와 원문 SHA 검증 완료.
+- [x] C 범위 APPROVED/OPEN 0: 기존 전체 설계 순차 구현 및 사용자 계속 지시 적용. 코드 착수는 T12 이후. 프로젝트 생성/이름 변경/활성 변경/삭제의 순수 STATE 명령만 포함하며 실제 저장/UI는 미연결.
+- [x] C 구현: createProject/renameProject/setProjectEnabled/deleteProject. 마지막 활성 프로젝트 보호, 저장된 순서에 따른 대체 선택, ID 단조 증가·삭제 후 재사용 금지, 동일 값 noop, 무관 프로젝트와 하위 설정 identity 보존. deep freeze 입력/오류 우선순위/Unicode 이름/1·10·1000 프로젝트 검증.
+- [x] 2026-09-07 최신 검사: JS 14개/Python 27개, static/semantic/recorder/C scoped T12 PASS. ENGINE/BRIDGE/실제 workspace 파일 변경 0. 전체 r7/WSS/브라우저 acceptance 완료를 의미하지 않는다.
+
 - [x] R2a(project-envelope-a): web/js/project-state.js의 wrapWorkspaceJson/projectWorkspacePath/selectProject 구현. validator clone 격리, unknown/숨김 설정 보존, safe project ID, 동일 선택 identity, N=1000 선택 시 무관 프로젝트 순회 0 검증.
 - [x] R1: 독립 보고서 읽기·문서 SHA·blocking findings·시그니처/기대값 비교 연결. --t12-scope project-envelope-a는 원문 증거와 현재 명세의 범위 일치까지 검증하며 scoped PASS만 출력.
 - [x] 최신 검사: JS 12개, Python 25개(기존 13+검증기 12), recorder 및 scoped T12 PASS. 전체 foundation-r7 T12는 14개 차단 결함으로 FAIL이며 새 문서 개정 이후 전체 재검토도 필요. 제품 전체 ARCH PASS 아님.
@@ -148,16 +153,16 @@ REMEDIATION_REQUIRED
 
 ```text
 branch       : main
-제품 기준선  : fc4de20 (R2a push 완료); R2b는 현재 tranche commit을 Git log로 대조
-문서 tranche : 전체 독립 T12 FAIL + project-envelope-a/b 독립 PASS
-worktree     : R2b 순수 JSON 검증 및 scoped 비교 완료; Git 상태 대조
+제품 기준선  : 7663687 (R2b push 완료); C 명령은 현재 tranche commit을 Git log로 대조
+문서 tranche : 전체 독립 T12 FAIL + project-envelope-a/b, project-commands-c 독립 PASS
+worktree     : C 순수 프로젝트 명령 및 scoped 비교 완료; Git 상태 대조
 현재 STATE   : state/workspace.json schemaVersion 6
 목표 STATE   : schemaVersion 7 envelope + 프로젝트 내부 v6
-설계 상태    : 기존 v6 APPROVED; project-envelope-a/b APPROVED/구현; foundation-r7 DRAFT
-OPEN         : 전체 T12 차단 14개 / project-envelope-a/b 0
-게이트       : B T12·static·semantic·recorder PASS; 전체 새 범위 독립 재검토 필요
+설계 상태    : 기존 v6 APPROVED; project-envelope-a/b 및 project-commands-c APPROVED/구현; foundation-r7 DRAFT
+OPEN         : 전체 T12 차단 14개 / project-envelope-a/b 및 project-commands-c 0
+게이트       : C T12·static·semantic·recorder PASS; 전체 새 범위 독립 재검토 필요
 다음 설계 ID : README.md D7.project-storage.followup, D3/D4.foundation-r7, T12-R7-004
-다음 행동    : R2c v6 strict validator/프로젝트 CRUD/저장 ack·실패 계약 확정 후 독립 검토. review_envelope_b로 검토 재개됨
+다음 행동    : v6 strict validator와 저장 ack·실패 계약 확정 후 독립 검토. CRUD 순수 명령은 완료, UI/파일 저장 연결은 미완료. review_envelope_b로 검토 가능
 검증 잔여    : 실시간 구현/부하/복구, 프로젝트 격리, 브라우저 acceptance, 전체 ARCH PASS
 ```
 
